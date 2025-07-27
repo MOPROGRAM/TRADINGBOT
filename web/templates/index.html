@@ -33,7 +33,7 @@
                         <template x-for="asset in Object.keys(balance)" :key="asset">
                             <div class="flex justify-between items-center">
                                 <span class="font-bold" x-text="asset"></span>
-                                <span class="font-mono" x-text="parseFloat(balance[asset].total).toFixed(4)"></span>
+                                <span class="font-mono" x-text="balance[asset] && balance[asset].total ? parseFloat(balance[asset].total).toFixed(4) : 'N/A'"></span>
                             </div>
                         </template>
                     </div>

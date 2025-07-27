@@ -69,16 +69,16 @@ def get_account_balance(exchange):
         logger.info("DRY RUN: Simulating account balance.")
         base_currency, quote_currency = "XLM", "USDT"
         return {
-            quote_currency: {"free": 1000.0, "total": 1000.0},
-            base_currency: {"free": 500.0, "total": 500.0}
+            quote_currency: {"free": 1000.0, "used": 0.0, "total": 1000.0},
+            base_currency: {"free": 500.0, "used": 0.0, "total": 500.0}
         }
     try:
         balance = exchange.fetch_balance()
-        # Filter out zero balances for clarity
+        # Return the full structure for assets with a total balance > 0
         return {
-            asset: data 
-            for asset, data in balance['total'].items() 
-            if data > 0
+            asset: data
+            for asset, data in balance.items()
+            if isinstance(data, dict) and data.get('total') is not None and data['total'] > 0
         }
     except ccxt.errors.Error as e:
         logger.error(f"Error fetching account balance: {e}")
