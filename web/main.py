@@ -1,11 +1,11 @@
 import os
 import sys
+import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Add project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -18,13 +18,22 @@ from bot import run_bot_tick, POLL_SECONDS
 logger = get_logger(__name__)
 app = FastAPI()
 
-scheduler = AsyncIOScheduler()
+async def run_bot_in_background():
+    """
+    A simple asyncio background task to run the bot tick periodically.
+    """
+    while True:
+        try:
+            logger.info("Running bot tick from background task...")
+            run_bot_tick()
+        except Exception as e:
+            logger.error(f"An error occurred in the bot background task: {e}", exc_info=True)
+        await asyncio.sleep(POLL_SECONDS)
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting scheduler to run bot tick periodically...")
-    scheduler.add_job(run_bot_tick, 'interval', seconds=POLL_SECONDS, id="bot_tick_job")
-    scheduler.start()
+    logger.info("Starting bot as a background task...")
+    asyncio.create_task(run_bot_in_background())
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
@@ -63,11 +72,7 @@ async def get_status():
         logger.error(f"Error in /api/status: {e}", exc_info=True)
         return {"error": str(e)}
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Shutting down scheduler...")
-    scheduler.shutdown()
-
 if __name__ == "__main__":
     import uvicorn
+    # This part is for local development, the background task will be started by the startup event
     uvicorn.run(app, host="0.0.0.0", port=8000)
