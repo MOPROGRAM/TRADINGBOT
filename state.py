@@ -16,8 +16,10 @@ def save_state(state):
 
 def load_state():
     if not os.path.exists(STATE_FILE):
-        logger.warning(f"{STATE_FILE} not found. Initializing with default state.")
-        return get_default_state()
+        logger.warning(f"{STATE_FILE} not found. Initializing and saving default state.")
+        default_state = get_default_state()
+        save_state(default_state)
+        return default_state
     
     try:
         with open(STATE_FILE, 'r') as f:
