@@ -25,8 +25,6 @@ async def startup_event():
     logger.info("Starting scheduler to run bot tick periodically...")
     scheduler.add_job(run_bot_tick, 'interval', seconds=POLL_SECONDS, id="bot_tick_job")
     scheduler.start()
-    # Run one tick immediately on startup
-    run_bot_tick()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
