@@ -51,6 +51,17 @@
                     </div>
                 </div>
 
+                <!-- Live Logs Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">Live Bot Logs</h2>
+                    <div class="max-h-60 overflow-y-auto bg-gray-900 p-2 rounded font-mono text-xs">
+                        <template x-for="log in liveLogs" :key="log">
+                            <p x-text="log" class="whitespace-pre-wrap"></p>
+                        </template>
+                        <p x-show="liveLogs.length === 0">Waiting for logs...</p>
+                    </div>
+                </div>
+
                 <!-- Trade History Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
                     <h2 class="text-xl font-semibold mb-2">Trade History</h2>
@@ -107,10 +118,13 @@
                 balance: {},
                 tradeHistory: [],
                 totalPnl: '0.00%',
+                liveLogs: [],
 
                 init() {
                     this.fetchStatus();
+                    this.fetchLogs();
                     setInterval(() => this.fetchStatus(), 5000);
+                    setInterval(() => this.fetchLogs(), 7000); // Fetch logs slightly less often
                     this.loadTradingViewChart();
                 },
 
@@ -146,6 +160,18 @@
                             console.error('Error fetching status:', error);
                             this.statusIcon = '🔴';
                             this.statusText = 'API Error';
+                        });
+                },
+
+                fetchLogs() {
+                    fetch('/api/logs')
+                        .then(response => response.json())
+                        .then(data => {
+                            this.liveLogs = data.logs || [];
+                        })
+                        .catch(error => {
+                            console.error('Error fetching logs:', error);
+                            this.liveLogs = ['Error loading logs.'];
                         });
                 },
 

@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from exchange import get_exchange, get_current_price, get_account_balance
 from state import load_state, load_trade_history
-from logger import get_logger
+from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS
 
 logger = get_logger(__name__)
@@ -47,6 +47,21 @@ SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "symbol": SYMBOL})
+
+@app.get("/api/logs")
+def get_live_logs():
+    try:
+        if not os.path.exists(LIVE_LOG_FILE):
+            return {"logs": ["Log file not created yet."]}
+        
+        with open(LIVE_LOG_FILE, 'r') as f:
+            # Read last N lines for efficiency
+            lines = f.readlines()
+            last_lines = lines[-50:] # Get last 50 lines
+            return {"logs": last_lines[::-1]} # Reverse to show newest first
+    except Exception as e:
+        logger.error(f"Error reading live log file: {e}")
+        return {"logs": [f"Error reading logs: {e}"]}
 
 # Make the status endpoint synchronous
 @app.get("/api/status_sync")
