@@ -10,16 +10,6 @@ services:
         value: 3.9
       - fromGroup: trading-bot-env
 
-  # Service 2: The Trading Bot (Background Worker)
-  - type: worker
-    name: trading-bot-worker
-    env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python bot.py"
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.9
-      - fromGroup: trading-bot-env
 
 envVarGroups:
   - name: trading-bot-env

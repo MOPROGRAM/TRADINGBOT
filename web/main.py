@@ -1,5 +1,6 @@
 import os
 import sys
+import threading
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,9 +13,17 @@ sys.path.append(str(Path(__file__).parent.parent))
 from exchange import get_exchange, get_current_price
 from state import load_state
 from logger import get_logger
+from bot import run_bot
 
 logger = get_logger(__name__)
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting bot in background thread...")
+    thread = threading.Thread(target=run_bot)
+    thread.daemon = True
+    thread.start()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
