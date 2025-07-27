@@ -1,11 +1,11 @@
 import os
 import sys
-import threading
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Add project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -13,17 +13,20 @@ sys.path.append(str(Path(__file__).parent.parent))
 from exchange import get_exchange, get_current_price
 from state import load_state
 from logger import get_logger
-from bot import run_bot
+from bot import run_bot_tick, POLL_SECONDS
 
 logger = get_logger(__name__)
 app = FastAPI()
 
+scheduler = AsyncIOScheduler()
+
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting bot in background thread...")
-    thread = threading.Thread(target=run_bot)
-    thread.daemon = True
-    thread.start()
+    logger.info("Starting scheduler to run bot tick periodically...")
+    scheduler.add_job(run_bot_tick, 'interval', seconds=POLL_SECONDS, id="bot_tick_job")
+    scheduler.start()
+    # Run one tick immediately on startup
+    run_bot_tick()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
@@ -61,6 +64,11 @@ async def get_status():
     except Exception as e:
         logger.error(f"Error in /api/status: {e}", exc_info=True)
         return {"error": str(e)}
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down scheduler...")
+    scheduler.shutdown()
 
 if __name__ == "__main__":
     import uvicorn
