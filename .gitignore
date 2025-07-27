@@ -1,0 +1,17 @@
+# Environment variables
+.env
+
+# State file
+trading_state.json
+
+# Log file
+trading_bot.log
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# IDE specific files
+.vscode/
+.idea/

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-gray-900 text-white font-sans" x-data="botDashboard()" x-init="init()">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-4">XLM/USDT Trading Bot</h1>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- Left Column: Status & Position -->
+            <div class="md:col-span-1 space-y-4">
+                <!-- Status Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">Status</h2>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-2xl" x-html="statusIcon"></span>
+                        <span class="text-lg" x-text="statusText"></span>
+                    </div>
+                </div>
+
+                <!-- Price Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2" x-text="symbol"></h2>
+                    <p class="text-4xl font-mono" x-text="currentPrice"></p>
+                </div>
+
+                <!-- Position Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
+                    <h2 class="text-xl font-semibold mb-2">Open Position</h2>
+                    <div class="space-y-1">
+                        <p><strong>Entry Price:</strong> <span x-text="position.entry_price"></span></p>
+                        <p><strong>Size:</strong> <span x-text="position.size"></span></p>
+                        <p><strong>Timestamp:</strong> <span x-text="position.timestamp"></span></p>
+                        <p><strong>PnL:</strong> <span x-text="pnl" :class="pnl > 0 ? 'text-green-400' : 'text-red-400'"></span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Chart -->
+            <div class="md:col-span-2 bg-gray-800 p-4 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-2">Chart</h2>
+                <!-- TradingView Widget BEGIN -->
+                <div class="tradingview-widget-container" style="height:400px;width:100%">
+                  <div id="tradingview_chart" style="height:100%;width:100%"></div>
+                </div>
+                <!-- TradingView Widget END -->
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+        function botDashboard() {
+            return {
+                symbol: '{{ symbol }}',
+                currentPrice: 'Loading...',
+                hasPosition: false,
+                position: {},
+                pnl: '0.00%',
+                statusIcon: '🟡',
+                statusText: 'Initializing...',
+
+                init() {
+                    this.fetchStatus();
+                    setInterval(() => this.fetchStatus(), 5000);
+                    this.loadTradingViewChart();
+                },
+
+                fetchStatus() {
+                    fetch('/api/status')
+                        .then(response => response.json())
+                        .then(data => {
+                            this.currentPrice = '$' + parseFloat(data.current_price).toFixed(4);
+                            this.hasPosition = data.has_position;
+                            if (this.hasPosition) {
+                                this.position = {
+                                    entry_price: parseFloat(data.position.entry_price).toFixed(4),
+                                    size: parseFloat(data.position.size).toFixed(6),
+                                    timestamp: new Date(data.position.timestamp).toLocaleString(),
+                                };
+                                this.pnl = data.pnl.toFixed(2) + '%';
+                                this.statusIcon = '🟢';
+                                this.statusText = 'Holding Position';
+                            } else {
+                                this.position = {};
+                                this.pnl = '0.00%';
+                                this.statusIcon = '🟡';
+                                this.statusText = 'Waiting for Signal';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching status:', error);
+                            this.statusIcon = '🔴';
+                            this.statusText = 'Error';
+                        });
+                },
+
+                loadTradingViewChart() {
+                    new TradingView.widget({
+                        "autosize": true,
+                        "symbol": `BINANCE:{{ symbol.replace('/', '') }}`,
+                        "interval": "5",
+                        "timezone": "Etc/UTC",
+                        "theme": "dark",
+                        "style": "1",
+                        "locale": "en",
+                        "toolbar_bg": "#f1f3f6",
+                        "enable_publishing": false,
+                        "withdateranges": true,
+                        "hide_side_toolbar": false,
+                        "allow_symbol_change": true,
+                        "container_id": "tradingview_chart"
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
