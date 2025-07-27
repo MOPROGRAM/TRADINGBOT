@@ -130,6 +130,22 @@ A script `test_signals.py` will be provided to simulate candle patterns and chec
 
 *(This section will be updated with the test script)*
 
+## 部署到 Render (Deployment on Render)
+
+This project is configured for easy deployment on [Render](https://render.com/).
+
+1.  **Push your code to GitHub**: Make sure your repository is up to date.
+2.  **Create a new "Blueprint" service on Render**:
+    *   Go to your Render Dashboard.
+    *   Click **New +** and select **Blueprint**.
+    *   Connect your GitHub repository.
+    *   Render will automatically detect the `render.yaml` file.
+3.  **Configure Environment Variables**:
+    *   In the Render dashboard, go to the **Environment** section for your new services.
+    *   Create an **Environment Group** named `trading-bot-env`.
+    *   Add your secret keys (`BINANCE_API_KEY`, `BINANCE_API_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) to this group. This keeps your secrets secure.
+4.  **Deploy**: Click **Create New Blueprint**. Render will build and deploy both the web interface and the trading bot worker.
+
 ---
 
 *Disclaimer: This bot is for educational purposes only. Trading cryptocurrencies involves significant risk. The author is not responsible for any financial losses.*

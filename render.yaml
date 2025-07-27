@@ -1,0 +1,50 @@
+services:
+  # Service 1: The Web Interface (FastAPI)
+  - type: web
+    name: trading-bot-web
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn web.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9
+      - fromGroup: trading-bot-env
+
+  # Service 2: The Trading Bot (Background Worker)
+  - type: worker
+    name: trading-bot-worker
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python bot.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9
+      - fromGroup: trading-bot-env
+
+envVarGroups:
+  - name: trading-bot-env
+    envVars:
+      - key: BINANCE_API_KEY
+        value: YOUR_BINANCE_API_KEY
+      - key: BINANCE_API_SECRET
+        value: YOUR_BINANCE_API_SECRET
+      - key: TELEGRAM_BOT_TOKEN
+        value: YOUR_TELEGRAM_BOT_TOKEN
+      - key: TELEGRAM_CHAT_ID
+        value: YOUR_TELEGRAM_CHAT_ID
+      - key: SYMBOL
+        value: XLM/USDT
+      - key: TIMEFRAME
+        value: 5m
+      - key: AMOUNT_USDT
+        value: 5.0
+      - key: STOP_LOSS_PERCENT
+        value: 1.5
+      - key: TAKE_PROFIT_PERCENT
+        value: 3.0
+      - key: POLL_SECONDS
+        value: 10
+      - key: DRY_RUN
+        value: True
+      - key: LOG_LEVEL
+        value: INFO
