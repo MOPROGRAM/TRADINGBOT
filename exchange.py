@@ -29,7 +29,7 @@ def fetch_candles(exchange, symbol, timeframe, limit=3):
         # CCXT returns: [timestamp, open, high, low, close, volume]
         # We only need: [timestamp, open, high, low, close]
         return [[c[0], c[1], c[2], c[3], c[4]] for c in candles]
-    except ccxt.Error as e:
+    except ccxt.errors.Error as e:
         logger.error(f"Error fetching candles for {symbol}: {e}")
         return []
 
@@ -37,7 +37,7 @@ def get_current_price(exchange, symbol):
     try:
         ticker = exchange.fetch_ticker(symbol)
         return ticker['last']
-    except ccxt.Error as e:
+    except ccxt.errors.Error as e:
         logger.error(f"Error fetching current price for {symbol}: {e}")
         return None
 
@@ -60,7 +60,7 @@ def create_market_buy_order(exchange, symbol, amount_usdt):
         order = exchange.create_market_buy_order_with_cost(symbol, amount_usdt)
         logger.info(f"Created market buy order: {order}")
         return order
-    except ccxt.Error as e:
+    except ccxt.errors.Error as e:
         logger.error(f"Error creating market buy order: {e}")
         return None
 
@@ -82,6 +82,6 @@ def create_market_sell_order(exchange, symbol, size):
         order = exchange.create_market_sell_order(symbol, size)
         logger.info(f"Created market sell order: {order}")
         return order
-    except ccxt.Error as e:
+    except ccxt.errors.Error as e:
         logger.error(f"Error creating market sell order: {e}")
         return None
