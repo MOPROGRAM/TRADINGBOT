@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Start the bot in the background
-echo "Starting trading bot in the background..."
-python bot.py &
+# The bot is started as a background task by the web server (web/main.py).
+# This script is for local development only.
+# In production, the render.yaml configuration is used.
 
-# Start the web server in the foreground
-echo "Starting web server..."
-uvicorn web.main:app --host 0.0.0.0 --port $PORT
+echo "Starting web server with integrated bot..."
+uvicorn web.main:app --host 0.0.0.0 --port 8000
