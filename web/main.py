@@ -48,18 +48,28 @@ SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "symbol": SYMBOL})
 
+# Make the status endpoint synchronous
+@app.get("/api/status_sync")
+def get_status_sync():
+    return get_status()
+
 @app.get("/api/status")
-async def get_status():
+def get_status():
     try:
+        logger.info("API: /api/status called")
         exchange = get_exchange()
         
-        # Fetch all data in parallel
-        current_price, balance, state, history = await asyncio.gather(
-            asyncio.to_thread(get_current_price, exchange, SYMBOL),
-            asyncio.to_thread(get_account_balance, exchange),
-            asyncio.to_thread(load_state),
-            asyncio.to_thread(load_trade_history)
-        )
+        logger.info("API: Fetching current price...")
+        current_price = get_current_price(exchange, SYMBOL)
+        
+        logger.info("API: Fetching account balance...")
+        balance = get_account_balance(exchange)
+        
+        logger.info("API: Loading state...")
+        state = load_state()
+        
+        logger.info("API: Loading trade history...")
+        history = load_trade_history()
 
         pnl = 0
         if state.get('has_position') and state.get('position', {}).get('entry_price'):
