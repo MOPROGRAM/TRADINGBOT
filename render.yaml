@@ -5,7 +5,7 @@ services:
     name: trading-bot-web
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn web.main:app -w 1 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT"
+    startCommand: "gunicorn web.main:app -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 -b 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.9
