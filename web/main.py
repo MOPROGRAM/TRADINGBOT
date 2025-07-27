@@ -10,8 +10,8 @@ from pathlib import Path
 # Add project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from exchange import get_exchange, get_current_price
-from state import load_state
+from exchange import get_exchange, get_current_price, get_account_balance
+from state import load_state, load_trade_history
 from logger import get_logger
 from bot import run_bot_tick, POLL_SECONDS
 
@@ -52,21 +52,32 @@ async def read_root(request: Request):
 async def get_status():
     try:
         exchange = get_exchange()
-        current_price = get_current_price(exchange, SYMBOL)
-        state = load_state()
         
+        # Fetch all data in parallel
+        current_price, balance, state, history = await asyncio.gather(
+            asyncio.to_thread(get_current_price, exchange, SYMBOL),
+            asyncio.to_thread(get_account_balance, exchange),
+            asyncio.to_thread(load_state),
+            asyncio.to_thread(load_trade_history)
+        )
+
         pnl = 0
         if state.get('has_position') and state.get('position', {}).get('entry_price'):
             entry_price = state['position']['entry_price']
-            if entry_price > 0:
+            if entry_price and current_price:
                 pnl = ((current_price - entry_price) / entry_price) * 100
+        
+        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history)
 
         return {
             "symbol": SYMBOL,
             "current_price": current_price,
+            "balance": balance,
             "position": state.get('position', {}),
             "has_position": state.get('has_position', False),
-            "pnl": pnl
+            "pnl": pnl,
+            "trade_history": history,
+            "total_pnl": total_pnl
         }
     except Exception as e:
         logger.error(f"Error in /api/status: {e}", exc_info=True)

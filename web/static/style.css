@@ -1,1 +1,22 @@
-/* Custom styles can be added here if needed */
+/* Custom scrollbar for trade history */
+.max-h-96::-webkit-scrollbar {
+    width: 8px;
+}
+
+.max-h-96::-webkit-scrollbar-track {
+    background: #1f2937; /* bg-gray-800 */
+}
+
+.max-h-96::-webkit-scrollbar-thumb {
+    background: #4b5563; /* bg-gray-600 */
+    border-radius: 4px;
+}
+
+.max-h-96::-webkit-scrollbar-thumb:hover {
+    background: #6b7280; /* bg-gray-500 */
+}
+
+/* Add a subtle hover effect to table rows */
+tbody tr:hover {
+    background-color: #374151; /* bg-gray-700 */
+}

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from logger import get_logger
 from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
-from state import load_state, save_state, clear_state
+from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
 
 # Load environment variables
@@ -15,8 +15,8 @@ logger = get_logger(__name__)
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
 AMOUNT_USDT = float(os.getenv('AMOUNT_USDT', 5.0))
-SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 1.5))
-TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 3.0))
+SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 0.5))
+TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 
@@ -37,11 +37,44 @@ def run_bot_tick():
 
         # Check for SL/TP first if we have a position
         if state['has_position']:
+            # --- Trailing Stop Logic ---
+            highest_price = state['position'].get('highest_price_after_tp')
+            if highest_price and current_price > highest_price:
+                state['position']['highest_price_after_tp'] = current_price
+                save_state(state)
+                logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
+
             reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT)
-            if reason:
+            
+            if reason == "TP_ACTIVATION":
+                # Activate trailing stop, but don't sell yet
+                if not state['position'].get('highest_price_after_tp'):
+                    state['position']['highest_price_after_tp'] = current_price
+                    save_state(state)
+                    msg = f"📈 <b>TP Hit & Trailing Activated</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>"
+                    send_telegram_message(msg)
+                    logger.info("Take Profit threshold hit. Activating Trailing Stop.")
+            elif reason in ["SL", "Trailing SL"]:
+                # Sell for Stop Loss or Trailing Stop Loss
                 sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
                 if sell_order:
-                    msg = f"✅ {reason} SELL {SYMBOL} @ ${current_price:.4f}"
+                    # --- Record Trade History ---
+                    entry_price = state['position']['entry_price']
+                    exit_price = sell_order['price']
+                    pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+                    trade_record = {
+                        "symbol": SYMBOL,
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "size": state['position']['size'],
+                        "pnl_percent": pnl_percent,
+                        "reason": reason,
+                        "timestamp": sell_order['datetime']
+                    }
+                    save_trade_history(trade_record)
+                    # --- End Record ---
+                    
+                    msg = f"✅ <b>{reason} SELL</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>\nPnL: <code>{pnl_percent:.2f}%</code>"
                     send_telegram_message(msg)
                     logger.info(msg)
                     clear_state()
@@ -61,13 +94,16 @@ def run_bot_tick():
             if check_buy_signal(candles):
                 buy_order = create_market_buy_order(exchange, SYMBOL, AMOUNT_USDT)
                 if buy_order:
+                    # Re-initialize state to ensure it's clean
+                    state = load_state() # Use a fresh default state
                     state['has_position'] = True
                     state['position']['entry_price'] = buy_order['price']
                     state['position']['size'] = buy_order['amount']
                     state['position']['timestamp'] = buy_order['datetime']
+                    state['position']['highest_price_after_tp'] = None # Ensure this is reset
                     save_state(state)
                     
-                    msg = f"🟢 BUY {SYMBOL} @ ${buy_order['price']:.4f}"
+                    msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>"
                     send_telegram_message(msg)
                     logger.info(msg)
         else:
@@ -75,12 +111,28 @@ def run_bot_tick():
             if check_sell_signal(candles):
                 sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
                 if sell_order:
-                    msg = f"🔻 Trend Reversal SELL {SYMBOL} @ ${current_price:.4f}"
+                    # --- Record Trade History ---
+                    entry_price = state['position']['entry_price']
+                    exit_price = sell_order['price']
+                    pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+                    trade_record = {
+                        "symbol": SYMBOL,
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "size": state['position']['size'],
+                        "pnl_percent": pnl_percent,
+                        "reason": "Trend Reversal",
+                        "timestamp": sell_order['datetime']
+                    }
+                    save_trade_history(trade_record)
+                    # --- End Record ---
+
+                    msg = f"🔻 <b>Trend Reversal SELL</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>\nPnL: <code>{pnl_percent:.2f}%</code>"
                     send_telegram_message(msg)
                     logger.info(msg)
                     clear_state()
 
     except Exception as e:
-        error_msg = f"⚠️ An unexpected error occurred during bot tick: {e}"
-        logger.error(error_msg, exc_info=True)
+        error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"
+        logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
         send_telegram_message(error_msg)

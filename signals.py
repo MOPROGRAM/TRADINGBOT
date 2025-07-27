@@ -57,23 +57,32 @@ def check_sell_signal(candles):
 
 def check_sl_tp(current_price, position, sl_percent, tp_percent):
     """
-    Checks for Stop Loss or Take Profit conditions.
+    Checks for Stop Loss, Take Profit, or Trailing Stop Loss conditions.
     """
     if not position["has_position"]:
         return None, None
 
     entry_price = position["position"]["entry_price"]
-    
-    # Stop Loss Check
+    highest_price = position["position"].get("highest_price_after_tp")
+
+    # Trailing Stop Loss Check (if activated)
+    if highest_price:
+        trailing_sl_price = highest_price * (1 - sl_percent / 100)
+        if current_price <= trailing_sl_price:
+            logger.info(f"Trailing Stop Loss triggered at {current_price:.4f} (Highest: {highest_price:.4f}, TSL: {trailing_sl_price:.4f})")
+            return "Trailing SL", trailing_sl_price
+        return None, None # While trailing, only check TSL
+
+    # Standard Stop Loss Check
     sl_price = entry_price * (1 - sl_percent / 100)
     if current_price <= sl_price:
         logger.info(f"Stop Loss triggered at {current_price:.4f} (SL price: {sl_price:.4f})")
         return "SL", sl_price
 
-    # Take Profit Check
+    # Take Profit Check (to activate trailing)
     tp_price = entry_price * (1 + tp_percent / 100)
     if current_price >= tp_price:
-        logger.info(f"Take Profit triggered at {current_price:.4f} (TP price: {tp_price:.4f})")
-        return "TP", tp_price
+        logger.info(f"Take Profit threshold reached at {current_price:.4f}. Activating trailing stop.")
+        return "TP_ACTIVATION", current_price
 
     return None, None

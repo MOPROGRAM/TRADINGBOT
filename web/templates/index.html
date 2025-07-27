@@ -10,26 +10,34 @@
 </head>
 <body class="bg-gray-900 text-white font-sans" x-data="botDashboard()" x-init="init()">
     <div class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-4">XLM/USDT Trading Bot</h1>
-
+        
         <!-- Main Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <!-- Left Column: Status & Position -->
-            <div class="md:col-span-1 space-y-4">
-                <!-- Status Card -->
+            <!-- Left Column: Data Panels -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Status & Price Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Status</h2>
+                    <h2 class="text-2xl font-bold mb-2" x-text="symbol"></h2>
+                    <p class="text-4xl font-mono mb-2" x-text="currentPrice"></p>
                     <div class="flex items-center space-x-2">
                         <span class="text-2xl" x-html="statusIcon"></span>
                         <span class="text-lg" x-text="statusText"></span>
                     </div>
                 </div>
 
-                <!-- Price Card -->
+                <!-- Account Balance Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2" x-text="symbol"></h2>
-                    <p class="text-4xl font-mono" x-text="currentPrice"></p>
+                    <h2 class="text-xl font-semibold mb-2">Account Balance</h2>
+                    <div class="space-y-2" x-show="Object.keys(balance).length > 0">
+                        <template x-for="asset in Object.keys(balance)" :key="asset">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold" x-text="asset"></span>
+                                <span class="font-mono" x-text="parseFloat(balance[asset].total).toFixed(4)"></span>
+                            </div>
+                        </template>
+                    </div>
+                     <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
                 <!-- Position Card -->
@@ -38,20 +46,49 @@
                     <div class="space-y-1">
                         <p><strong>Entry Price:</strong> <span x-text="position.entry_price"></span></p>
                         <p><strong>Size:</strong> <span x-text="position.size"></span></p>
-                        <p><strong>Timestamp:</strong> <span x-text="position.timestamp"></span></p>
-                        <p><strong>PnL:</strong> <span x-text="pnl" :class="pnl > 0 ? 'text-green-400' : 'text-red-400'"></span></p>
+                        <p><strong>PnL:</strong> <span x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></span></p>
+                        <p class="text-xs text-gray-400"><strong>Timestamp:</strong> <span x-text="position.timestamp"></span></p>
+                    </div>
+                </div>
+
+                <!-- Trade History Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">Trade History</h2>
+                    <div class="flex justify-between items-center mb-2">
+                        <span>Total PnL:</span>
+                        <span x-text="totalPnl" class="font-bold" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></span>
+                    </div>
+                    <div class="max-h-96 overflow-y-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-400 uppercase bg-gray-700">
+                                <tr>
+                                    <th scope="col" class="px-2 py-2">Exit Price</th>
+                                    <th scope="col" class="px-2 py-2">PnL %</th>
+                                    <th scope="col" class="px-2 py-2">Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="trade in tradeHistory" :key="trade.timestamp">
+                                    <tr class="border-b border-gray-700">
+                                        <td class="px-2 py-2 font-mono" x-text="parseFloat(trade.exit_price).toFixed(4)"></td>
+                                        <td class="px-2 py-2" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl_percent.toFixed(2) + '%'"></td>
+                                        <td class="px-2 py-2" x-text="trade.reason"></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="tradeHistory.length === 0">
+                                    <td colspan="3" class="text-center py-4">No trades yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
             <!-- Right Column: Chart -->
-            <div class="md:col-span-2 bg-gray-800 p-4 rounded-lg shadow">
-                <h2 class="text-xl font-semibold mb-2">Chart</h2>
-                <!-- TradingView Widget BEGIN -->
-                <div class="tradingview-widget-container" style="height:400px;width:100%">
+            <div class="lg:col-span-2 bg-gray-800 p-4 rounded-lg shadow min-h-[600px]">
+                <div class="tradingview-widget-container" style="height:100%;width:100%">
                   <div id="tradingview_chart" style="height:100%;width:100%"></div>
                 </div>
-                <!-- TradingView Widget END -->
             </div>
         </div>
     </div>
@@ -67,6 +104,9 @@
                 pnl: '0.00%',
                 statusIcon: '🟡',
                 statusText: 'Initializing...',
+                balance: {},
+                tradeHistory: [],
+                totalPnl: '0.00%',
 
                 init() {
                     this.fetchStatus();
@@ -78,17 +118,23 @@
                     fetch('/api/status')
                         .then(response => response.json())
                         .then(data => {
-                            this.currentPrice = '$' + parseFloat(data.current_price).toFixed(4);
+                            if (data.error) throw new Error(data.error);
+
+                            this.currentPrice = data.current_price ? '$' + parseFloat(data.current_price).toFixed(4) : 'N/A';
                             this.hasPosition = data.has_position;
+                            this.balance = data.balance || {};
+                            this.tradeHistory = data.trade_history || [];
+                            this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
+
                             if (this.hasPosition) {
                                 this.position = {
-                                    entry_price: parseFloat(data.position.entry_price).toFixed(4),
-                                    size: parseFloat(data.position.size).toFixed(6),
-                                    timestamp: new Date(data.position.timestamp).toLocaleString(),
+                                    entry_price: data.position.entry_price ? parseFloat(data.position.entry_price).toFixed(4) : 'N/A',
+                                    size: data.position.size ? parseFloat(data.position.size).toFixed(6) : 'N/A',
+                                    timestamp: data.position.timestamp ? new Date(data.position.timestamp).toLocaleString() : 'N/A',
                                 };
                                 this.pnl = data.pnl.toFixed(2) + '%';
                                 this.statusIcon = '🟢';
-                                this.statusText = 'Holding Position';
+                                this.statusText = 'Position Open';
                             } else {
                                 this.position = {};
                                 this.pnl = '0.00%';
@@ -99,7 +145,7 @@
                         .catch(error => {
                             console.error('Error fetching status:', error);
                             this.statusIcon = '🔴';
-                            this.statusText = 'Error';
+                            this.statusText = 'API Error';
                         });
                 },
 
@@ -112,9 +158,7 @@
                         "theme": "dark",
                         "style": "1",
                         "locale": "en",
-                        "toolbar_bg": "#f1f3f6",
                         "enable_publishing": false,
-                        "withdateranges": true,
                         "hide_side_toolbar": false,
                         "allow_symbol_change": true,
                         "container_id": "tradingview_chart"

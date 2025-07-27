@@ -64,6 +64,26 @@ def create_market_buy_order(exchange, symbol, amount_usdt):
         logger.error(f"Error creating market buy order: {e}")
         return None
 
+def get_account_balance(exchange):
+    if DRY_RUN:
+        logger.info("DRY RUN: Simulating account balance.")
+        base_currency, quote_currency = "XLM", "USDT"
+        return {
+            quote_currency: {"free": 1000.0, "total": 1000.0},
+            base_currency: {"free": 500.0, "total": 500.0}
+        }
+    try:
+        balance = exchange.fetch_balance()
+        # Filter out zero balances for clarity
+        return {
+            asset: data 
+            for asset, data in balance['total'].items() 
+            if data > 0
+        }
+    except ccxt.errors.Error as e:
+        logger.error(f"Error fetching account balance: {e}")
+        return {}
+
 def create_market_sell_order(exchange, symbol, size):
     if DRY_RUN:
         logger.info(f"DRY RUN: Would sell {size} of {symbol}.")
