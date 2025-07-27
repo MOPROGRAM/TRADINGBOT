@@ -55,22 +55,38 @@ def get_status_sync():
 
 @app.get("/api/status")
 def get_status():
+    logger.info("API: /api/status called")
+    exchange = get_exchange()
+    
+    # --- Fetch data with individual error handling for robustness ---
+    current_price, balance, state, history = None, {}, {}, []
+
     try:
-        logger.info("API: /api/status called")
-        exchange = get_exchange()
-        
         logger.info("API: Fetching current price...")
         current_price = get_current_price(exchange, SYMBOL)
-        
+    except Exception as e:
+        logger.error(f"API: Failed to get current price: {e}", exc_info=True)
+
+    try:
         logger.info("API: Fetching account balance...")
         balance = get_account_balance(exchange)
-        
+    except Exception as e:
+        logger.error(f"API: Failed to get account balance: {e}", exc_info=True)
+
+    try:
         logger.info("API: Loading state...")
         state = load_state()
-        
+    except Exception as e:
+        logger.error(f"API: Failed to load state: {e}", exc_info=True)
+
+    try:
         logger.info("API: Loading trade history...")
         history = load_trade_history()
+    except Exception as e:
+        logger.error(f"API: Failed to load trade history: {e}", exc_info=True)
+    # --- End of robust data fetching ---
 
+    try:
         pnl = 0
         if state.get('has_position') and state.get('position', {}).get('entry_price'):
             entry_price = state['position']['entry_price']
@@ -90,8 +106,13 @@ def get_status():
             "total_pnl": total_pnl
         }
     except Exception as e:
-        logger.error(f"Error in /api/status: {e}", exc_info=True)
-        return {"error": str(e)}
+        logger.error(f"API: Error during final data assembly: {e}", exc_info=True)
+        # Return a valid structure even on final error to prevent 502
+        return {
+            "symbol": SYMBOL, "current_price": None, "balance": {}, 
+            "position": {}, "has_position": False, "pnl": 0, 
+            "trade_history": [], "total_pnl": 0, "error": str(e)
+        }
 
 if __name__ == "__main__":
     import uvicorn
