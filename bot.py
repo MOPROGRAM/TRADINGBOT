@@ -73,14 +73,14 @@ def run_bot_tick():
                     logger.error("Failed to create sell order for SL/TP.")
                 return # End tick after action
 
-        # Fetch candles for signal checks
-        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=3)
-        if not candles or len(candles) < 3:
-            logger.warning("Could not fetch enough candles for signal check.")
-            return
-
         # Position Management
         if not state['has_position']:
+            # Fetch candles for signal checks ONLY when we don't have a position
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=2)
+            if not candles or len(candles) < 2:
+                logger.warning("Could not fetch enough candles for signal check.")
+                return
+
             # Check for BUY signal
             if check_buy_signal(candles):
                 balance = get_account_balance(exchange)
