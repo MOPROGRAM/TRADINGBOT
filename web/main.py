@@ -121,7 +121,27 @@ def get_status():
             if entry_price and current_price:
                 pnl = ((current_price - entry_price) / entry_price) * 100
         
-        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history)
+        # Process trade history
+        processed_history = []
+        
+        # Add the current open position to the top of the history list
+        if state.get('has_position'):
+            open_position = state.get('position', {}).copy()
+            open_position['is_open'] = True
+            open_position['pnl_percent'] = pnl
+            open_position['exit_price'] = None # No exit price for open trades
+            open_position['reason'] = 'Open'
+            processed_history.append(open_position)
+
+        # Add closed trades from history
+        for trade in history:
+            trade['is_open'] = False
+            processed_history.append(trade)
+
+        # Sort by timestamp descending to show newest first
+        processed_history.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+
+        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history) # Only sum closed trades
 
         return {
             "symbol": SYMBOL,
@@ -130,7 +150,7 @@ def get_status():
             "position": state.get('position', {}),
             "has_position": state.get('has_position', False),
             "pnl": pnl,
-            "trade_history": history,
+            "trade_history": processed_history,
             "total_pnl": total_pnl,
             "candles": candles,
             "signal": signal
