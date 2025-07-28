@@ -102,6 +102,11 @@ def run_bot_tick():
                         send_telegram_message(msg)
                         logger.info(msg)
         else:
+            # Fetch candles for signal checks ONLY when we have a position
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=2)
+            if not candles or len(candles) < 2:
+                logger.warning("Could not fetch enough candles for signal check.")
+                return
             # Check for SELL signal (trend reversal)
             if check_sell_signal(candles):
                 balance = get_account_balance(exchange)
