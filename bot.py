@@ -111,19 +111,22 @@ def run_bot_tick():
     base_currency_balance = balance.get(base_currency, {}).get('free', 0)
     min_position_amount = 1 # Minimum amount to be considered a real position
 
-    if state.get('has_position') and base_currency_balance < min_position_amount:
-        logger.warning(f"State file shows a position, but balance on exchange is only {base_currency_balance}. "
-                       "This means the position was likely closed outside the bot. Clearing local state.")
-        
-        msg = (f"⚠️ <b>State Mismatch</b>\nLocal state showed an open position, but exchange balance is low.\n"
-               f"Assuming position is closed. Clearing local state to resync.")
-        send_telegram_message(msg)
-        status_messages.append(msg)
-        
-        # We don't know the exit details, so we can't create a perfect trade record.
-        # The most important thing is to clear the state to allow new trades.
-        clear_state()
-        state = load_state() # Reload the cleared state
+    if state.get('has_position'):
+        position_size = state['position'].get('size', 0)
+        # If our current balance is less than 90% of the recorded position size, we assume it was sold.
+        if base_currency_balance < position_size * 0.9:
+            logger.warning(f"State file shows a position of size {position_size}, but balance on exchange is only {base_currency_balance}. "
+                           "This means the position was likely closed outside the bot. Clearing local state.")
+            
+            msg = (f"⚠️ <b>State Mismatch</b>\nLocal state showed an open position, but exchange balance is significantly lower.\n"
+                   f"Assuming position is closed. Clearing local state to resync.")
+            send_telegram_message(msg)
+            status_messages.append(msg)
+            
+            # We don't know the exit details, so we can't create a perfect trade record.
+            # The most important thing is to clear the state to allow new trades.
+            clear_state()
+            state = load_state() # Reload the cleared state
 
     elif not state.get('has_position') and base_currency_balance >= min_position_amount:
         logger.warning("Local state is empty, but found a position on the exchange. Running sync logic...")
