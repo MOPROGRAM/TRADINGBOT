@@ -5,6 +5,7 @@ fastapi
 uvicorn
 jinja2
 python-multipart
-pandas
+pandas==2.2.2
+numpy==1.26.4
 gunicorn
-pandas-ta
+pandas-ta==0.3.14b
