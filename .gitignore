@@ -2,7 +2,7 @@
 .env
 
 # State file
-# trading_state.json
+trading_state.json
 
 # Log file
 trading_bot.log
