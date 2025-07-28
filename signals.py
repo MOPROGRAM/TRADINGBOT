@@ -4,13 +4,13 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-def check_buy_signal(candles):
+def check_buy_signal(candles, volume_sma_period=20):
     """
     Checks for a 3-candle uptrend pattern confirmed by high volume.
     Candles are [timestamp, open, high, low, close, volume].
     """
-    if len(candles) < 21: # Need at least 20 periods for SMA + 1 for current
-        logger.warning("Not enough candle data to calculate volume SMA (need > 20).")
+    if len(candles) < volume_sma_period + 1:
+        logger.warning(f"Not enough candle data to calculate volume SMA (need > {volume_sma_period}).")
         return False
 
     # Create a DataFrame
@@ -28,50 +28,90 @@ def check_buy_signal(candles):
         return False # No need to check volume if price action fails
 
     # --- Volume Confirmation Check ---
-    # Calculate the 20-period simple moving average of the volume
-    df['volume_sma_20'] = ta.sma(df['volume'], length=20)
+    # Calculate the simple moving average of the volume
+    df['volume_sma'] = ta.sma(df['volume'], length=volume_sma_period)
     
     # Get the latest volume and its SMA
     latest_volume = c3['volume']
-    latest_volume_sma = df['volume_sma_20'].iloc[-1]
+    latest_volume_sma = df['volume_sma'].iloc[-1]
 
     volume_signal = latest_volume > latest_volume_sma
 
     if volume_signal:
-        logger.info(f"Volume confirmation: Latest volume ({latest_volume:.2f}) > 20-period SMA ({latest_volume_sma:.2f})")
+        logger.info(f"Volume confirmation: Latest volume ({latest_volume:.2f}) > {volume_sma_period}-period SMA ({latest_volume_sma:.2f})")
     else:
-        logger.info(f"Volume check failed: Latest volume ({latest_volume:.2f}) <= 20-period SMA ({latest_volume_sma:.2f})")
+        logger.info(f"Volume check failed: Latest volume ({latest_volume:.2f}) <= {volume_sma_period}-period SMA ({latest_volume_sma:.2f})")
         return False
 
     # If both price action and volume signals are true
     logger.info("BUY SIGNAL CONFIRMED: 3-candle uptrend with high volume.")
     return True
 
-def check_sell_signal(candles):
+def is_market_bullish(btc_candles, ema_period=50):
     """
-    Checks for a 3-candle downtrend pattern for trend reversal.
+    Checks if the overall market is bullish based on a reference symbol's trend.
+    A simple check: is the current price above the specified EMA period?
+    """
+    if len(btc_candles) < ema_period:
+        logger.warning(f"Not enough market filter candle data to calculate EMA (need > {ema_period}).")
+        return False # Default to neutral/bearish if not enough data
+
+    df = pd.DataFrame(btc_candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    
+    # Calculate the Exponential Moving Average
+    df['ema'] = ta.ema(df['close'], length=ema_period)
+    
+    # Get the latest close price and the latest EMA value
+    latest_price = df['close'].iloc[-1]
+    latest_ema = df['ema'].iloc[-1]
+    
+    is_bullish = latest_price > latest_ema
+    
+    if is_bullish:
+        logger.info(f"Market Filter: BULLISH (BTC Price ${latest_price:.2f} > {ema_period}-EMA ${latest_ema:.2f})")
+    else:
+        logger.info(f"Market Filter: BEARISH (BTC Price ${latest_price:.2f} <= {ema_period}-EMA ${latest_ema:.2f})")
+        
+    return is_bullish
+
+def check_sell_signal(candles, exit_ema_period=9):
+    """
+    Checks for two sell conditions:
+    1. A sharp 3-candle downtrend pattern for trend reversal.
+    2. Price closing below a short-term EMA, indicating loss of momentum.
     """
     if len(candles) < 3:
-        return False
+        return False # Not enough data for even the basic check
 
+    # --- Condition 1: Strong 3-Candle Reversal ---
     c1, c2, c3 = candles[-3:]
+    # Deconstruct the last candle for EMA check
+    _, _, _, _, latest_close, _ = c3
 
-    # Deconstruct candles
-    _, _, high1, low1, close1 = c1
-    _, _, high2, low2, close2 = c2
-    _, _, high3, low3, close3 = c3
-
-    # Price action rules for a stronger SELL signal (3-candle confirmation)
     is_strong_downtrend = (
-        close1 > close2 > close3 and  # Closing prices are successively lower
-        low1 > low2 > low3 and        # Lows are successively lower
-        high1 > high2 > high3         # Highs are successively lower
+        c1[4] > c2[4] > c3[4] and  # Closing prices are successively lower
+        c1[3] > c2[3] > c3[3]    # Lows are successively lower
     )
 
     if is_strong_downtrend:
-        logger.info("Strong 3-candle sell signal (downtrend) detected.")
+        logger.info("SELL SIGNAL: Strong 3-candle reversal pattern detected.")
+        return True
 
-    return is_strong_downtrend
+    # --- Condition 2: Price Below Short-Term EMA (Loss of Momentum) ---
+    if len(candles) < exit_ema_period:
+        logger.warning(f"Not enough candles for exit EMA ({exit_ema_period}). Skipping this check.")
+        return False
+
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['exit_ema'] = ta.ema(df['close'], length=exit_ema_period)
+    
+    latest_ema = df['exit_ema'].iloc[-1]
+    
+    if latest_close < latest_ema:
+        logger.info(f"SELL SIGNAL: Price ({latest_close:.4f}) crossed below {exit_ema_period}-EMA ({latest_ema:.4f}).")
+        return True
+
+    return False
 
 def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent):
     """

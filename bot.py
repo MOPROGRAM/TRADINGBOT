@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from logger import get_logger
 from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
-from signals import check_buy_signal, check_sell_signal, check_sl_tp
+from signals import check_buy_signal, check_sell_signal, check_sl_tp, is_market_bullish
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
 from shared_state import status_messages
@@ -22,6 +22,12 @@ POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 TRAILING_TP_ACTIVATION_PERCENT = float(os.getenv('TRAILING_TP_ACTIVATION_PERCENT', 0.4))
 TRAILING_TP_PERCENT = float(os.getenv('TRAILING_TP_PERCENT', 0.2))
+
+# --- Strategy Parameters ---
+VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 20))
+MARKET_FILTER_SYMBOL = os.getenv('MARKET_FILTER_SYMBOL', 'BTC/USDT')
+MARKET_FILTER_EMA_PERIOD = int(os.getenv('MARKET_FILTER_EMA_PERIOD', 50))
+EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 9))
 
 def sync_position_with_exchange(exchange, symbol):
     """
@@ -207,14 +213,29 @@ def run_bot_tick():
 
         # Position Management
         if not state['has_position']:
-            # Fetch candles for signal checks ONLY when we don't have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=30)
-            if not candles or len(candles) < 30:
-                logger.warning("Could not fetch enough candles for signal check.")
+            # --- BTC Market Filter ---
+            logger.info(f"Checking market filter using {MARKET_FILTER_SYMBOL}...")
+            # Determine required candles for filter
+            filter_candle_limit = MARKET_FILTER_EMA_PERIOD + 5 # Add a small buffer
+            
+            btc_candles = fetch_candles(exchange, MARKET_FILTER_SYMBOL, TIMEFRAME, limit=filter_candle_limit)
+            if not is_market_bullish(btc_candles, ema_period=MARKET_FILTER_EMA_PERIOD):
+                logger.info("Market is not bullish. Skipping buy signal check.")
+                return
+            # --- End BTC Filter ---
+
+            # --- Symbol-specific Buy Signal Check ---
+            logger.info(f"Market is bullish. Checking for buy signal on {SYMBOL}...")
+            # Determine required candles for signal
+            signal_candle_limit = VOLUME_SMA_PERIOD + 5 # Add a small buffer
+
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=signal_candle_limit)
+            if not candles or len(candles) < signal_candle_limit:
+                logger.warning(f"Could not fetch enough candles for {SYMBOL} signal check.")
                 return
 
             # Check for BUY signal
-            if check_buy_signal(candles):
+            if check_buy_signal(candles, volume_sma_period=VOLUME_SMA_PERIOD):
                 balance = get_account_balance(exchange)
                 quote_currency = SYMBOL.split('/')[1]
                 amount_usdt = balance.get(quote_currency, {}).get('free', 0)
@@ -235,12 +256,13 @@ def run_bot_tick():
                         logger.info(msg)
         else:
             # Fetch candles for signal checks ONLY when we have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=30)
-            if not candles or len(candles) < 30:
-                logger.warning("Could not fetch enough candles for signal check.")
+            sell_candle_limit = EXIT_EMA_PERIOD + 5 # Need enough for EMA calculation
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=sell_candle_limit)
+            if not candles or len(candles) < EXIT_EMA_PERIOD:
+                logger.warning("Could not fetch enough candles for sell signal check.")
                 return
-            # Check for SELL signal (trend reversal)
-            if check_sell_signal(candles):
+            # Check for SELL signal (trend reversal or loss of momentum)
+            if check_sell_signal(candles, exit_ema_period=EXIT_EMA_PERIOD):
                 balance = get_account_balance(exchange)
                 base_currency = SYMBOL.split('/')[0]
                 size = balance.get(base_currency, {}).get('free', 0)
