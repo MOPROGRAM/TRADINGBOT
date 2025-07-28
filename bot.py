@@ -92,11 +92,11 @@ def run_bot_tick():
                         # Re-initialize state to ensure it's clean
                         state = load_state() # Use a fresh default state
                         state['has_position'] = True
-                    state['position']['entry_price'] = buy_order['price']
-                    state['position']['size'] = buy_order['amount']
-                    state['position']['timestamp'] = buy_order['datetime']
-                    state['position']['highest_price_after_tp'] = None # Ensure this is reset
-                    save_state(state)
+                        state['position']['entry_price'] = buy_order['price']
+                        state['position']['size'] = buy_order['amount']
+                        state['position']['timestamp'] = buy_order['datetime']
+                        state['position']['highest_price_after_tp'] = None # Ensure this is reset
+                        save_state(state)
                     
                     msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>"
                     send_telegram_message(msg)
@@ -113,8 +113,8 @@ def run_bot_tick():
                         # --- Record Trade History ---
                         entry_price = state['position']['entry_price']
                         exit_price = sell_order['price']
-                    pnl_percent = ((exit_price - entry_price) / entry_price) * 100
-                    trade_record = {
+                        pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+                        trade_record = {
                         "symbol": SYMBOL,
                         "entry_price": entry_price,
                         "exit_price": exit_price,
