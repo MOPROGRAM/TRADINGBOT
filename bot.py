@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 
 from logger import get_logger
@@ -120,13 +121,32 @@ def run_bot_tick():
             logger.warning(f"State file shows a position of size {position_size}, but balance on exchange is only {base_currency_balance}. "
                            "This means the position was likely closed outside the bot. Clearing local state.")
             
-            msg = (f"⚠️ <b>State Mismatch</b>\nLocal state showed an open position, but exchange balance is significantly lower.\n"
-                   f"Assuming position is closed. Clearing local state to resync.")
+            # --- Create a synthetic trade record for the mismatch ---
+            entry_price = state['position']['entry_price']
+            # We don't know the exact exit price, so we use the current price as an approximation
+            exit_price_approx = get_current_price(exchange, SYMBOL) or entry_price
+            
+            pnl_percent = ((exit_price_approx - entry_price) / entry_price) * 100
+            
+            trade_record = {
+                "symbol": SYMBOL,
+                "entry_price": entry_price,
+                "exit_price": exit_price_approx,
+                "size": state['position']['size'],
+                "pnl_percent": pnl_percent,
+                "reason": "State Mismatch", # A special reason for this event
+                "timestamp": datetime.now().isoformat()
+            }
+            save_trade_history(trade_record)
+            # --- End of synthetic record ---
+
+            msg = (f"⚠️ <b>State Mismatch</b>\nPosition closed outside the bot. "
+                   f"A trade record has been created with an approximate PnL of <code>{pnl_percent:.2f}%</code>.\n"
+                   f"Clearing local state to resync.")
             send_telegram_message(msg)
             status_messages.append(msg)
             
-            # We don't know the exit details, so we can't create a perfect trade record.
-            # The most important thing is to clear the state to allow new trades.
+            # Clear the state to allow new trades
             clear_state()
             state = load_state() # Reload the cleared state
 
