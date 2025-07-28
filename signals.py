@@ -4,24 +4,23 @@ logger = get_logger(__name__)
 
 def check_buy_signal(candles):
     """
-    Checks for a 3-candle uptrend pattern.
+    Checks for a 2-candle uptrend pattern.
     Candles are [timestamp, open, high, low, close].
     """
-    if len(candles) < 3:
+    if len(candles) < 2:
         return False
 
-    c1, c2, c3 = candles[-3:]
+    c1, c2 = candles[-2:]
     
     # Deconstruct candles for readability
     _, _, high1, low1, close1 = c1
     _, _, high2, low2, close2 = c2
-    _, _, high3, low3, close3 = c3
 
     # Price action rules for BUY
     is_uptrend = (
-        close1 < close2 < close3 and
-        high1 < high2 < high3 and
-        low1 < low2 < low3
+        close1 < close2 and
+        high1 < high2 and
+        low1 < low2
     )
 
     if is_uptrend:
@@ -31,23 +30,22 @@ def check_buy_signal(candles):
 
 def check_sell_signal(candles):
     """
-    Checks for a 3-candle downtrend pattern.
+    Checks for a 2-candle downtrend pattern.
     """
-    if len(candles) < 3:
+    if len(candles) < 2:
         return False
 
-    c1, c2, c3 = candles[-3:]
+    c1, c2 = candles[-2:]
 
     # Deconstruct candles
     _, _, high1, low1, close1 = c1
     _, _, high2, low2, close2 = c2
-    _, _, high3, low3, close3 = c3
 
     # Price action rules for SELL
     is_downtrend = (
-        close1 > close2 > close3 and
-        high1 > high2 > high3 and
-        low1 > low2 > low3
+        close1 > close2 and
+        high1 > high2 and
+        low1 > low2
     )
 
     if is_downtrend:
