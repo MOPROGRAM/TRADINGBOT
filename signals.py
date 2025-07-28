@@ -1,33 +1,51 @@
+import pandas as pd
+import pandas_ta as ta
 from logger import get_logger
 
 logger = get_logger(__name__)
 
 def check_buy_signal(candles):
     """
-    Checks for a 3-candle uptrend pattern.
-    Candles are [timestamp, open, high, low, close].
+    Checks for a 3-candle uptrend pattern confirmed by high volume.
+    Candles are [timestamp, open, high, low, close, volume].
     """
-    if len(candles) < 3:
+    if len(candles) < 21: # Need at least 20 periods for SMA + 1 for current
+        logger.warning("Not enough candle data to calculate volume SMA (need > 20).")
         return False
 
-    c1, c2, c3 = candles[-3:]
+    # Create a DataFrame
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
-    # Deconstruct candles for readability
-    _, _, high1, low1, close1 = c1
-    _, _, high2, low2, close2 = c2
-    _, _, high3, low3, close3 = c3
-
-    # Price action rules for a stronger BUY signal (3-candle confirmation)
-    is_strong_uptrend = (
-        close1 < close2 < close3 and  # Closing prices are successively higher
-        low1 < low2 < low3 and        # Lows are successively higher
-        high1 < high2 < high3         # Highs are successively higher
+    # --- Price Action Check (3-candle uptrend) ---
+    c1, c2, c3 = df.iloc[-3], df.iloc[-2], df.iloc[-1]
+    
+    price_action_signal = (
+        c1['close'] < c2['close'] < c3['close'] and
+        c1['low'] < c2['low'] < c3['low']
     )
 
-    if is_strong_uptrend:
-        logger.info("Strong 3-candle buy signal detected.")
+    if not price_action_signal:
+        return False # No need to check volume if price action fails
+
+    # --- Volume Confirmation Check ---
+    # Calculate the 20-period simple moving average of the volume
+    df['volume_sma_20'] = ta.sma(df['volume'], length=20)
     
-    return is_strong_uptrend
+    # Get the latest volume and its SMA
+    latest_volume = c3['volume']
+    latest_volume_sma = df['volume_sma_20'].iloc[-1]
+
+    volume_signal = latest_volume > latest_volume_sma
+
+    if volume_signal:
+        logger.info(f"Volume confirmation: Latest volume ({latest_volume:.2f}) > 20-period SMA ({latest_volume_sma:.2f})")
+    else:
+        logger.info(f"Volume check failed: Latest volume ({latest_volume:.2f}) <= 20-period SMA ({latest_volume_sma:.2f})")
+        return False
+
+    # If both price action and volume signals are true
+    logger.info("BUY SIGNAL CONFIRMED: 3-candle uptrend with high volume.")
+    return True
 
 def check_sell_signal(candles):
     """

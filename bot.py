@@ -208,8 +208,8 @@ def run_bot_tick():
         # Position Management
         if not state['has_position']:
             # Fetch candles for signal checks ONLY when we don't have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=3)
-            if not candles or len(candles) < 3:
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=30)
+            if not candles or len(candles) < 30:
                 logger.warning("Could not fetch enough candles for signal check.")
                 return
 
@@ -235,8 +235,8 @@ def run_bot_tick():
                         logger.info(msg)
         else:
             # Fetch candles for signal checks ONLY when we have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=3)
-            if not candles or len(candles) < 3:
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=30)
+            if not candles or len(candles) < 30:
                 logger.warning("Could not fetch enough candles for signal check.")
                 return
             # Check for SELL signal (trend reversal)
