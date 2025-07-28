@@ -90,8 +90,8 @@ def run_bot_tick():
                     buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
                     if buy_order:
                         # Re-initialize state to ensure it's clean
-                    state = load_state() # Use a fresh default state
-                    state['has_position'] = True
+                        state = load_state() # Use a fresh default state
+                        state['has_position'] = True
                     state['position']['entry_price'] = buy_order['price']
                     state['position']['size'] = buy_order['amount']
                     state['position']['timestamp'] = buy_order['datetime']
@@ -111,8 +111,8 @@ def run_bot_tick():
                     sell_order = create_market_sell_order(exchange, SYMBOL, size)
                     if sell_order:
                         # --- Record Trade History ---
-                    entry_price = state['position']['entry_price']
-                    exit_price = sell_order['price']
+                        entry_price = state['position']['entry_price']
+                        exit_price = sell_order['price']
                     pnl_percent = ((exit_price - entry_price) / entry_price) * 100
                     trade_record = {
                         "symbol": SYMBOL,
