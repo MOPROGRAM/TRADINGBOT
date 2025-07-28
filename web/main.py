@@ -15,13 +15,11 @@ from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
+from shared_state import status_messages
 
 logger = get_logger(__name__)
 app = FastAPI()
 exchange = get_exchange()
-
-# Global variable to hold status messages
-status_messages = []
 
 async def run_bot_in_background():
     """
