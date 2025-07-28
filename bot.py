@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 from logger import get_logger
-from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance
+from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
@@ -45,28 +45,55 @@ def sync_position_with_exchange(exchange, symbol):
     min_position_amount = 1 
 
     if base_currency_balance > min_position_amount:
-        logger.warning(f"Found {base_currency_balance} {base_currency} on exchange without a local state. Re-creating state.")
+        logger.warning(f"Found {base_currency_balance:.6f} {base_currency} on exchange without a local state. Attempting to sync from trade history.")
         
-        # We have a position, but no local state. Re-create it.
-        # WARNING: We don't know the original entry price. We'll use the current price as an approximation.
-        # This means PnL calculations for this trade will be inaccurate until it's closed and a new one starts.
-        current_price = get_current_price(exchange, symbol)
-        if not current_price:
-            logger.error("Cannot re-create state: failed to fetch current price.")
-            return
+        last_buy_trade = fetch_last_buy_trade(exchange, symbol)
+        
+        if last_buy_trade:
+            # Found a historical buy trade, let's use its data
+            entry_price = last_buy_trade['price']
+            entry_timestamp = last_buy_trade['datetime']
+            entry_size = last_buy_trade['amount']
+            
+            # A check to see if the balance roughly matches the last trade size
+            if abs(base_currency_balance - entry_size) / entry_size > 0.05: # 5% tolerance
+                 logger.warning(f"The current balance ({base_currency_balance}) does not closely match the last trade size ({entry_size}). Using current balance.")
+                 entry_size = base_currency_balance
 
-        state['has_position'] = True
-        state['position']['entry_price'] = current_price # Approximation!
-        state['position']['size'] = base_currency_balance
-        state['position']['timestamp'] = None # We don't know the original timestamp
-        state['position']['highest_price_after_tp'] = None
-        save_state(state)
-        
-        msg = (f"⚠️ <b>State Sync</b>\nFound an existing {base_currency} position on the exchange.\n"
-               f"Re-created local state. Entry price is an approximation. PnL will be inaccurate for this trade.")
-        send_telegram_message(msg)
-        status_messages.append(msg) # Add to web status
-        logger.info("Successfully synced position from exchange.")
+
+            state['has_position'] = True
+            state['position']['entry_price'] = entry_price
+            state['position']['size'] = entry_size
+            state['position']['timestamp'] = entry_timestamp
+            state['position']['highest_price_after_tp'] = None
+            save_state(state)
+            
+            msg = (f"✅ <b>State Sync</b>\nFound an existing {base_currency} position.\n"
+                   f"Synced from last buy trade at ${entry_price:.4f} on {entry_timestamp}.")
+            send_telegram_message(msg)
+            status_messages.append(msg)
+            logger.info("Successfully synced position from exchange trade history.")
+
+        else:
+            # Fallback to old method if no trade history is found
+            logger.error("Could not find a recent buy trade in history. Falling back to approximation.")
+            current_price = get_current_price(exchange, symbol)
+            if not current_price:
+                logger.error("Cannot re-create state: failed to fetch current price for fallback.")
+                return
+
+            state['has_position'] = True
+            state['position']['entry_price'] = current_price # Approximation!
+            state['position']['size'] = base_currency_balance
+            state['position']['timestamp'] = None
+            state['position']['highest_price_after_tp'] = None
+            save_state(state)
+            
+            msg = (f"⚠️ <b>State Sync (Fallback)</b>\nFound an existing position, but no trade history.\n"
+                   f"Re-created state with approximate entry price. PnL will be inaccurate.")
+            send_telegram_message(msg)
+            status_messages.append(msg)
+            logger.info("Successfully synced position from exchange using fallback.")
 
 def run_bot_tick():
     """

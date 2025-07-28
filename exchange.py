@@ -84,6 +84,29 @@ def get_account_balance(exchange):
         logger.error(f"Error fetching account balance: {e}")
         return {}
 
+def fetch_last_buy_trade(exchange, symbol, lookback_limit=25):
+    """
+    Fetches the last buy trade for a given symbol to determine the entry price.
+    """
+    try:
+        logger.info(f"Fetching last trades for {symbol} to find entry price...")
+        my_trades = exchange.fetch_my_trades(symbol=symbol, limit=lookback_limit)
+        
+        # Filter for buy trades and sort by timestamp descending (newest first)
+        buy_trades = [trade for trade in my_trades if trade.get('side') == 'buy']
+        
+        if not buy_trades:
+            logger.warning(f"No buy trades found for {symbol} in the last {lookback_limit} trades.")
+            return None
+            
+        last_buy = buy_trades[-1] # The last one in the fetched list is the most recent
+        logger.info(f"Found last buy trade: {last_buy}")
+        return last_buy
+
+    except ccxt.BaseError as e:
+        logger.error(f"Error fetching my trades for {symbol}: {e}")
+        return None
+
 def create_market_sell_order(exchange, symbol, size):
     if DRY_RUN:
         logger.info(f"DRY RUN: Would sell {size} of {symbol}.")
