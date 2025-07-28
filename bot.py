@@ -97,10 +97,10 @@ def run_bot_tick():
                         state['position']['timestamp'] = buy_order['datetime']
                         state['position']['highest_price_after_tp'] = None # Ensure this is reset
                         save_state(state)
-                    
-                    msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>"
-                    send_telegram_message(msg)
-                    logger.info(msg)
+                        
+                        msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>"
+                        send_telegram_message(msg)
+                        logger.info(msg)
         else:
             # Check for SELL signal (trend reversal)
             if check_sell_signal(candles):
