@@ -3,12 +3,10 @@ services:
   # Triggering a new deployment
   - type: web
     name: trading-bot-web
-    env: python
+    env: python:3.9
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn web.main:app -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 -b 0.0.0.0:$PORT"
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.9
       - fromGroup: trading-bot-env
 
 
