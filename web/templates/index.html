@@ -50,6 +50,12 @@
                      <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
+                <!-- Total Portfolio Value Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">Total Portfolio Value</h2>
+                    <p class="text-3xl font-mono" x-text="totalPortfolioUsdt"></p>
+                </div>
+
                 <!-- Position Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
                     <h2 class="text-xl font-semibold mb-2">Open Position</h2>
@@ -144,6 +150,7 @@
                 balance: {},
                 tradeHistory: [],
                 totalPnl: '0.00%',
+                totalPortfolioUsdt: 'Loading...',
                 candles: [],
                 signal: 'Waiting...',
                 statusMessages: [],
@@ -165,6 +172,7 @@
                             this.balance = data.balance || {};
                             this.tradeHistory = data.trade_history || [];
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
+                            this.totalPortfolioUsdt = data.total_portfolio_usdt ? '$' + data.total_portfolio_usdt.toFixed(2) : 'N/A';
                             this.candles = data.candles || [];
                             this.signal = data.signal || 'Waiting...';
                             this.statusMessages = data.status_messages || [];
