@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 from logger import get_logger
-from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order
+from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
@@ -14,7 +14,6 @@ logger = get_logger(__name__)
 # Constants from .env
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
-AMOUNT_USDT = float(os.getenv('AMOUNT_USDT', 5.0))
 SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 0.5))
 TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
@@ -84,9 +83,13 @@ def run_bot_tick():
         if not state['has_position']:
             # Check for BUY signal
             if check_buy_signal(candles):
-                buy_order = create_market_buy_order(exchange, SYMBOL, AMOUNT_USDT)
-                if buy_order:
-                    # Re-initialize state to ensure it's clean
+                balance = get_account_balance(exchange)
+                quote_currency = SYMBOL.split('/')[1]
+                amount_usdt = balance.get(quote_currency, {}).get('free', 0)
+                if amount_usdt > 1: # Ensure we have enough to trade
+                    buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+                    if buy_order:
+                        # Re-initialize state to ensure it's clean
                     state = load_state() # Use a fresh default state
                     state['has_position'] = True
                     state['position']['entry_price'] = buy_order['price']
@@ -101,9 +104,13 @@ def run_bot_tick():
         else:
             # Check for SELL signal (trend reversal)
             if check_sell_signal(candles):
-                sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
-                if sell_order:
-                    # --- Record Trade History ---
+                balance = get_account_balance(exchange)
+                base_currency = SYMBOL.split('/')[0]
+                size = balance.get(base_currency, {}).get('free', 0)
+                if size > 0:
+                    sell_order = create_market_sell_order(exchange, SYMBOL, size)
+                    if sell_order:
+                        # --- Record Trade History ---
                     entry_price = state['position']['entry_price']
                     exit_price = sell_order['price']
                     pnl_percent = ((exit_price - entry_price) / entry_price) * 100
