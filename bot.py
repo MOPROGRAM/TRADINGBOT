@@ -46,16 +46,8 @@ def run_bot_tick():
 
             reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT)
             
-            if reason == "TP_ACTIVATION":
-                # Activate trailing stop, but don't sell yet
-                if not state['position'].get('highest_price_after_tp'):
-                    state['position']['highest_price_after_tp'] = current_price
-                    save_state(state)
-                    msg = f"📈 <b>TP Hit & Trailing Activated</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>"
-                    send_telegram_message(msg)
-                    logger.info("Take Profit threshold hit. Activating Trailing Stop.")
-            elif reason in ["SL", "Trailing SL"]:
-                # Sell for Stop Loss or Trailing Stop Loss
+            if reason in ["SL", "TP"]:
+                # Sell for Stop Loss or Take Profit
                 sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
                 if sell_order:
                     # --- Record Trade History ---
