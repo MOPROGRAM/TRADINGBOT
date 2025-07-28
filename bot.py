@@ -102,12 +102,35 @@ def run_bot_tick():
     logger.info("Running bot tick...")
     
     exchange = get_exchange()
-    
-    # Sync position with exchange at the start of each tick
-    # This ensures we don't miss trades if the bot restarts
-    sync_position_with_exchange(exchange, SYMBOL)
-
     state = load_state()
+
+    # --- Real-time State Validation ---
+    # This is the source of truth. Always check the actual balance.
+    balance = get_account_balance(exchange)
+    base_currency = SYMBOL.split('/')[0]
+    base_currency_balance = balance.get(base_currency, {}).get('free', 0)
+    min_position_amount = 1 # Minimum amount to be considered a real position
+
+    if state.get('has_position') and base_currency_balance < min_position_amount:
+        logger.warning(f"State file shows a position, but balance on exchange is only {base_currency_balance}. "
+                       "This means the position was likely closed outside the bot. Clearing local state.")
+        
+        msg = (f"⚠️ <b>State Mismatch</b>\nLocal state showed an open position, but exchange balance is low.\n"
+               f"Assuming position is closed. Clearing local state to resync.")
+        send_telegram_message(msg)
+        status_messages.append(msg)
+        
+        # We don't know the exit details, so we can't create a perfect trade record.
+        # The most important thing is to clear the state to allow new trades.
+        clear_state()
+        state = load_state() # Reload the cleared state
+
+    elif not state.get('has_position') and base_currency_balance >= min_position_amount:
+        logger.warning("Local state is empty, but found a position on the exchange. Running sync logic...")
+        # This will attempt to find the entry price from trade history
+        sync_position_with_exchange(exchange, SYMBOL)
+        state = load_state() # Reload the potentially updated state
+    # --- End of Real-time State Validation ---
 
     try:
         current_price = get_current_price(exchange, SYMBOL)
