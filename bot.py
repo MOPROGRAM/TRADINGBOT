@@ -19,6 +19,8 @@ SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 0.5))
 TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
+TRAILING_TP_ACTIVATION_PERCENT = float(os.getenv('TRAILING_TP_ACTIVATION_PERCENT', 0.4))
+TRAILING_TP_PERCENT = float(os.getenv('TRAILING_TP_PERCENT', 0.2))
 
 def sync_position_with_exchange(exchange, symbol):
     """
@@ -65,7 +67,7 @@ def sync_position_with_exchange(exchange, symbol):
             state['position']['entry_price'] = entry_price
             state['position']['size'] = entry_size
             state['position']['timestamp'] = entry_timestamp
-            state['position']['highest_price_after_tp'] = None
+            state['position']['highest_price'] = entry_price # Initialize with entry price
             save_state(state)
             
             msg = (f"✅ <b>State Sync</b>\nFound an existing {base_currency} position.\n"
@@ -86,7 +88,7 @@ def sync_position_with_exchange(exchange, symbol):
             state['position']['entry_price'] = current_price # Approximation!
             state['position']['size'] = base_currency_balance
             state['position']['timestamp'] = None
-            state['position']['highest_price_after_tp'] = None
+            state['position']['highest_price'] = current_price # Approximation!
             save_state(state)
             
             msg = (f"⚠️ <b>State Sync (Fallback)</b>\nFound an existing position, but no trade history.\n"
@@ -143,17 +145,20 @@ def run_bot_tick():
 
         # Check for SL/TP first if we have a position
         if state['has_position']:
-            # --- Trailing Stop Logic ---
-            highest_price = state['position'].get('highest_price_after_tp')
-            if highest_price and current_price > highest_price:
-                state['position']['highest_price_after_tp'] = current_price
+            # --- Update Highest Price ---
+            highest_price = state['position'].get('highest_price', state['position']['entry_price'])
+            if current_price > highest_price:
+                state['position']['highest_price'] = current_price
                 save_state(state)
-                logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
+                logger.info(f"New highest price recorded: {current_price:.4f}")
 
-            reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT)
+            # --- Check for Sell Conditions ---
+            reason, price = check_sl_tp(
+                current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT
+            )
             
-            if reason in ["SL", "TP"]:
-                # Sell for Stop Loss or Take Profit
+            if reason in ["SL", "TP", "TTP"]:
+                # Sell for Stop Loss, Take Profit, or Trailing Take Profit
                 sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
                 if sell_order:
                     # --- Record Trade History ---
@@ -202,7 +207,7 @@ def run_bot_tick():
                         state['position']['entry_price'] = buy_order['price']
                         state['position']['size'] = buy_order['amount']
                         state['position']['timestamp'] = buy_order['datetime']
-                        state['position']['highest_price_after_tp'] = None # Ensure this is reset
+                        state['position']['highest_price'] = buy_order['price'] # Initialize highest price
                         save_state(state)
                         
                         msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>"

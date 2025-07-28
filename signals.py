@@ -53,25 +53,40 @@ def check_sell_signal(candles):
 
     return is_downtrend
 
-def check_sl_tp(current_price, position, sl_percent, tp_percent):
+def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent):
     """
-    Checks for Stop Loss or Take Profit conditions.
+    Checks for Stop Loss, Take Profit, or Trailing Take Profit conditions.
     """
-    if not position["has_position"]:
+    if not position_state["has_position"]:
         return None, None
 
-    entry_price = position["position"]["entry_price"]
-    
+    entry_price = position_state["position"]["entry_price"]
+    highest_price = position_state["position"].get("highest_price", entry_price)
+
     # Stop Loss Check
     sl_price = entry_price * (1 - sl_percent / 100)
     if current_price <= sl_price:
         logger.info(f"Stop Loss triggered at {current_price:.4f} (SL price: {sl_price:.4f})")
         return "SL", sl_price
 
-    # Take Profit Check
+    # Standard Take Profit Check
     tp_price = entry_price * (1 + tp_percent / 100)
     if current_price >= tp_price:
         logger.info(f"Take Profit triggered at {current_price:.4f} (TP price: {tp_price:.4f})")
         return "TP", tp_price
+
+    # Trailing Take Profit Logic
+    # 1. Check if trailing TP is activated
+    activation_price = entry_price * (1 + trailing_tp_activation_percent / 100)
+    if current_price > activation_price:
+        # 2. Define the trailing stop price based on the highest price reached
+        trailing_sl_price = highest_price * (1 - trailing_tp_percent / 100)
+        
+        # 3. Check if the current price has dropped below the trailing stop price
+        if current_price < trailing_sl_price:
+            pnl = ((current_price - entry_price) / entry_price) * 100
+            logger.info(f"Trailing Take Profit triggered at {current_price:.4f}. "
+                        f"Highest price was {highest_price:.4f}. PnL: {pnl:.2f}%")
+            return "TTP", current_price # TTP for Trailing Take Profit
 
     return None, None
