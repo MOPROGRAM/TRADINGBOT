@@ -18,6 +18,7 @@ from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
 
 logger = get_logger(__name__)
 app = FastAPI()
+exchange = get_exchange()
 
 async def run_bot_in_background():
     """
@@ -72,7 +73,6 @@ def get_status_sync():
 @app.get("/api/status")
 def get_status():
     logger.info("API: /api/status called")
-    exchange = get_exchange()
     
     # --- Fetch data with individual error handling for robustness ---
     current_price, balance, state, history, candles, signal = None, {}, {}, [], [], "Waiting"
