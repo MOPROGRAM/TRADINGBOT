@@ -10,10 +10,11 @@ from pathlib import Path
 # Add project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from exchange import get_exchange, get_current_price, get_account_balance
+from exchange import get_exchange, get_current_price, get_account_balance, fetch_candles
+from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
-from bot import run_bot_tick, POLL_SECONDS
+from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -74,7 +75,7 @@ def get_status():
     exchange = get_exchange()
     
     # --- Fetch data with individual error handling for robustness ---
-    current_price, balance, state, history = None, {}, {}, []
+    current_price, balance, state, history, candles, signal = None, {}, {}, [], [], "Waiting"
 
     try:
         logger.info("API: Fetching current price...")
@@ -99,6 +100,16 @@ def get_status():
         history = load_trade_history()
     except Exception as e:
         logger.error(f"API: Failed to load trade history: {e}", exc_info=True)
+        
+    try:
+        logger.info("API: Fetching candles...")
+        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME)
+        if check_buy_signal(candles):
+            signal = "Buy"
+        elif check_sell_signal(candles):
+            signal = "Sell"
+    except Exception as e:
+        logger.error(f"API: Failed to fetch candles or determine signal: {e}", exc_info=True)
     # --- End of robust data fetching ---
 
     try:
@@ -118,7 +129,9 @@ def get_status():
             "has_position": state.get('has_position', False),
             "pnl": pnl,
             "trade_history": history,
-            "total_pnl": total_pnl
+            "total_pnl": total_pnl,
+            "candles": candles,
+            "signal": signal
         }
     except Exception as e:
         logger.error(f"API: Error during final data assembly: {e}", exc_info=True)
@@ -126,7 +139,8 @@ def get_status():
         return {
             "symbol": SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
-            "trade_history": [], "total_pnl": 0, "error": str(e)
+            "trade_history": [], "total_pnl": 0, "error": str(e),
+            "candles": [], "signal": "Error"
         }
 
 if __name__ == "__main__":

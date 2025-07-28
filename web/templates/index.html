@@ -51,14 +51,20 @@
                     </div>
                 </div>
 
-                <!-- Live Logs Card -->
+                <!-- Signal Analysis Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Live Bot Logs</h2>
-                    <div class="max-h-60 overflow-y-auto bg-gray-900 p-2 rounded font-mono text-xs">
-                        <template x-for="log in liveLogs" :key="log">
-                            <p x-text="log" class="whitespace-pre-wrap"></p>
-                        </template>
-                        <p x-show="liveLogs.length === 0">Waiting for logs...</p>
+                    <h2 class="text-xl font-semibold mb-2">Signal Analysis</h2>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-2xl" x-text="signal === 'Buy' ? '🟢' : (signal === 'Sell' ? '🔴' : '🟡')"></span>
+                        <span class="text-lg" x-text="signal"></span>
+                    </div>
+                    <div class="mt-4">
+                        <h3 class="text-lg font-semibold">Last 3 Candles (OHLC):</h3>
+                        <ul class="font-mono text-sm">
+                            <template x-for="(candle, index) in candles" :key="index">
+                                <li x-text="`[${new Date(candle[0]).toLocaleTimeString()}] O: ${candle[1]} H: ${candle[2]} L: ${candle[3]} C: ${candle[4]}`"></li>
+                            </template>
+                        </ul>
                     </div>
                 </div>
 
@@ -118,13 +124,12 @@
                 balance: {},
                 tradeHistory: [],
                 totalPnl: '0.00%',
-                liveLogs: [],
+                candles: [],
+                signal: 'Waiting...',
 
                 init() {
                     this.fetchStatus();
-                    this.fetchLogs();
                     setInterval(() => this.fetchStatus(), 5000);
-                    setInterval(() => this.fetchLogs(), 7000); // Fetch logs slightly less often
                     this.loadTradingViewChart();
                 },
 
@@ -139,6 +144,8 @@
                             this.balance = data.balance || {};
                             this.tradeHistory = data.trade_history || [];
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
+                            this.candles = data.candles || [];
+                            this.signal = data.signal || 'Waiting...';
 
                             if (this.hasPosition) {
                                 this.position = {
@@ -160,18 +167,6 @@
                             console.error('Error fetching status:', error);
                             this.statusIcon = '🔴';
                             this.statusText = 'API Error';
-                        });
-                },
-
-                fetchLogs() {
-                    fetch('/api/logs')
-                        .then(response => response.json())
-                        .then(data => {
-                            this.liveLogs = data.logs || [];
-                        })
-                        .catch(error => {
-                            console.error('Error fetching logs:', error);
-                            this.liveLogs = ['Error loading logs.'];
                         });
                 },
 
