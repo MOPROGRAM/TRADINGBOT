@@ -27,8 +27,6 @@ envVarGroups:
         value: XLM/USDT
       - key: TIMEFRAME
         value: 5m
-      - key: AMOUNT_USDT
-        value: 5.0
       - key: STOP_LOSS_PERCENT
         value: 1.5
       - key: TAKE_PROFIT_PERCENT
