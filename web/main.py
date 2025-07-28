@@ -20,6 +20,9 @@ logger = get_logger(__name__)
 app = FastAPI()
 exchange = get_exchange()
 
+# Global variable to hold status messages
+status_messages = []
+
 async def run_bot_in_background():
     """
     A simple asyncio background task to run the bot tick periodically.
@@ -153,7 +156,8 @@ def get_status():
             "trade_history": processed_history,
             "total_pnl": total_pnl,
             "candles": candles,
-            "signal": signal
+            "signal": signal,
+            "status_messages": status_messages
         }
     except Exception as e:
         logger.error(f"API: Error during final data assembly: {e}", exc_info=True)
@@ -162,7 +166,8 @@ def get_status():
             "symbol": SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
-            "candles": [], "signal": "Error"
+            "candles": [], "signal": "Error",
+            "status_messages": status_messages
         }
 
 if __name__ == "__main__":

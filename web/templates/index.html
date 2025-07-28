@@ -26,6 +26,16 @@
                     </div>
                 </div>
 
+                <!-- Status Messages Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="statusMessages.length > 0">
+                    <h2 class="text-xl font-semibold mb-2">System Messages</h2>
+                    <div class="space-y-2">
+                        <template x-for="(msg, index) in statusMessages" :key="index">
+                            <div class="p-2 bg-blue-900/50 rounded-lg text-sm" x-html="msg"></div>
+                        </template>
+                    </div>
+                </div>
+
                 <!-- Account Balance Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
                     <h2 class="text-xl font-semibold mb-2">Account Balance</h2>
@@ -136,6 +146,7 @@
                 totalPnl: '0.00%',
                 candles: [],
                 signal: 'Waiting...',
+                statusMessages: [],
 
                 init() {
                     this.fetchStatus();
@@ -156,6 +167,7 @@
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
                             this.candles = data.candles || [];
                             this.signal = data.signal || 'Waiting...';
+                            this.statusMessages = data.status_messages || [];
 
                             if (this.hasPosition) {
                                 this.position = {

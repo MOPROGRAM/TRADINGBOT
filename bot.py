@@ -6,6 +6,7 @@ from exchange import get_exchange, fetch_candles, get_current_price, create_mark
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
+from web.main import status_messages
 
 # Load environment variables
 load_dotenv()
@@ -64,6 +65,7 @@ def sync_position_with_exchange(exchange, symbol):
         msg = (f"⚠️ <b>State Sync</b>\nFound an existing {base_currency} position on the exchange.\n"
                f"Re-created local state. Entry price is an approximation. PnL will be inaccurate for this trade.")
         send_telegram_message(msg)
+        status_messages.append(msg) # Add to web status
         logger.info("Successfully synced position from exchange.")
 
 def run_bot_tick():
