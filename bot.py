@@ -19,6 +19,53 @@ TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 
+def sync_position_with_exchange(exchange, symbol):
+    """
+    Checks the exchange for an existing position and syncs it with the local state.
+    This is useful if the bot restarts and needs to pick up an existing trade.
+    """
+    logger.info("Syncing position state with exchange...")
+    state = load_state()
+
+    # If local state already has a position, trust it for now.
+    if state.get('has_position'):
+        logger.info("Local state already shows a position. Skipping sync.")
+        return
+
+    # Check balance on the exchange
+    balance = get_account_balance(exchange)
+    base_currency = symbol.split('/')[0]
+    
+    # Check if we have a significant amount of the base currency
+    base_currency_balance = balance.get(base_currency, {}).get('free', 0)
+    
+    # Define a minimum amount to be considered a position, to avoid dust
+    # This threshold might need adjustment depending on the asset.
+    min_position_amount = 1 
+
+    if base_currency_balance > min_position_amount:
+        logger.warning(f"Found {base_currency_balance} {base_currency} on exchange without a local state. Re-creating state.")
+        
+        # We have a position, but no local state. Re-create it.
+        # WARNING: We don't know the original entry price. We'll use the current price as an approximation.
+        # This means PnL calculations for this trade will be inaccurate until it's closed and a new one starts.
+        current_price = get_current_price(exchange, symbol)
+        if not current_price:
+            logger.error("Cannot re-create state: failed to fetch current price.")
+            return
+
+        state['has_position'] = True
+        state['position']['entry_price'] = current_price # Approximation!
+        state['position']['size'] = base_currency_balance
+        state['position']['timestamp'] = None # We don't know the original timestamp
+        state['position']['highest_price_after_tp'] = None
+        save_state(state)
+        
+        msg = (f"⚠️ <b>State Sync</b>\nFound an existing {base_currency} position on the exchange.\n"
+               f"Re-created local state. Entry price is an approximation. PnL will be inaccurate for this trade.")
+        send_telegram_message(msg)
+        logger.info("Successfully synced position from exchange.")
+
 def run_bot_tick():
     """
     Runs a single check of the trading bot logic.
@@ -26,6 +73,11 @@ def run_bot_tick():
     logger.info("Running bot tick...")
     
     exchange = get_exchange()
+    
+    # Sync position with exchange at the start of each tick
+    # This ensures we don't miss trades if the bot restarts
+    sync_position_with_exchange(exchange, SYMBOL)
+
     state = load_state()
 
     try:
