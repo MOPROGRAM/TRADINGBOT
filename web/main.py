@@ -104,7 +104,9 @@ def get_status():
     try:
         logger.info("API: Fetching candles...")
         candles = fetch_candles(exchange, SYMBOL, TIMEFRAME)
-        if check_buy_signal(candles):
+        if state.get('has_position'):
+            signal = "Waiting"
+        elif check_buy_signal(candles):
             signal = "Buy"
         elif check_sell_signal(candles):
             signal = "Sell"
