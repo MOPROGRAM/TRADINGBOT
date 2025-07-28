@@ -75,9 +75,9 @@
                         <span class="text-lg" x-text="signal"></span>
                     </div>
                     <div class="mt-4">
-                        <h3 class="text-lg font-semibold">Last 2 Candles (OHLC):</h3>
+                        <h3 class="text-lg font-semibold">Last 3 Candles (OHLC):</h3>
                         <ul class="font-mono text-sm">
-                            <template x-for="(candle, index) in candles.slice(-2)" :key="index">
+                            <template x-for="(candle, index) in candles.slice(-3)" :key="index">
                                 <li x-text="`[${new Date(candle[0]).toLocaleTimeString()}] O: ${candle[1]} H: ${candle[2]} L: ${candle[3]} C: ${candle[4]}`"></li>
                             </template>
                         </ul>
