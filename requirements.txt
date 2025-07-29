@@ -1,9 +1,0 @@
-python-dotenv
-ccxt
-requests
-fastapi
-uvicorn
-jinja2
-python-multipart
-numpy==1.24.3
-gunicorn
