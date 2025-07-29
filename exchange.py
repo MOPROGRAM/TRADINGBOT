@@ -92,14 +92,17 @@ def fetch_last_buy_trade(exchange, symbol, lookback_limit=25):
         logger.info(f"Fetching last trades for {symbol} to find entry price...")
         my_trades = exchange.fetch_my_trades(symbol=symbol, limit=lookback_limit)
         
-        # Filter for buy trades and sort by timestamp descending (newest first)
+        # Filter for buy trades
         buy_trades = [trade for trade in my_trades if trade.get('side') == 'buy']
         
         if not buy_trades:
             logger.warning(f"No buy trades found for {symbol} in the last {lookback_limit} trades.")
             return None
             
-        last_buy = buy_trades[-1] # The last one in the fetched list is the most recent
+        # Sort by timestamp to ensure the last one is the most recent
+        buy_trades.sort(key=lambda t: t['timestamp'])
+        
+        last_buy = buy_trades[-1]
         logger.info(f"Found last buy trade: {last_buy}")
         return last_buy
 
