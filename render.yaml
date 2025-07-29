@@ -3,9 +3,9 @@ services:
   # Triggering a new deployment
   - type: web
     name: trading-bot-web
-    env: poetry
-    buildCommand: "poetry install"
-    startCommand: "poetry run gunicorn web.main:app -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 -b 0.0.0.0:$PORT"
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn web.main:app -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 -b 0.0.0.0:$PORT"
     envVars:
       - fromGroup: trading-bot-env
 
