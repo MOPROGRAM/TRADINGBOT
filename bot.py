@@ -6,7 +6,7 @@ from exchange import get_exchange, fetch_candles, get_current_price, create_mark
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
-from shared_state import status_messages, current_signal, strategy_params
+from shared_state import status_messages, current_signal, strategy_params, live_candles
 
 # Load environment variables
 load_dotenv()
@@ -151,7 +151,7 @@ def run_bot_tick():
     Runs a single check of the trading bot logic.
     """
     logger.info("Running bot tick...")
-    global current_signal # To modify the global variable
+    global current_signal, live_candles # To modify the global variables
     
     exchange = get_exchange()
     state = load_state()
@@ -212,6 +212,7 @@ def run_bot_tick():
         if not state['has_position']:
             # Fetch candles for signal checks ONLY when we don't have a position
             candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
+            live_candles = candles
             if not candles or len(candles) < 11:
                 logger.warning("Could not fetch enough candles for signal check.")
                 return
@@ -240,6 +241,7 @@ def run_bot_tick():
         else:
             # Fetch candles for signal checks ONLY when we have a position
             candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
+            live_candles = candles
             if not candles or len(candles) < 11:
                 logger.warning("Could not fetch enough candles for signal check.")
                 return

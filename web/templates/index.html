@@ -50,18 +50,6 @@
                      <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
-                <!-- Strategy Parameters Card -->
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Strategy Parameters</h2>
-                    <div class="space-y-2 text-sm">
-                        <template x-for="param in Object.keys(strategyParams)" :key="param">
-                            <div class="flex justify-between items-center">
-                                <span class="font-semibold capitalize" x-text="param.replace(/_/g, ' ')"></span>
-                                <span class="font-mono bg-gray-700 px-2 py-1 rounded" x-text="strategyParams[param]"></span>
-                            </div>
-                        </template>
-                    </div>
-                </div>
 
                 <!-- Position Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
@@ -76,12 +64,39 @@
 
                 <!-- Signal Analysis Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Live Signal</h2>
-                    <div class="flex items-center space-x-2">
+                    <h2 class="text-xl font-semibold mb-2">Live Signal & Candles</h2>
+                    <div class="flex items-center space-x-2 mb-3">
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
                         <span class="text-lg" x-text="signal"></span>
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">This is the live signal calculated by the bot.</p>
+                    <h3 class="text-md font-semibold mb-1">Candles Used for Calculation:</h3>
+                    <div class="max-h-48 overflow-y-auto text-xs font-mono">
+                        <table class="w-full text-left">
+                            <thead class="sticky top-0 bg-gray-700 text-gray-300">
+                                <tr>
+                                    <th class="px-2 py-1">Time</th>
+                                    <th class="px-2 py-1">O</th>
+                                    <th class="px-2 py-1">H</th>
+                                    <th class="px-2 py-1">L</th>
+                                    <th class="px-2 py-1">C</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="(candle, index) in live_candles" :key="index">
+                                    <tr class="border-b border-gray-700/50">
+                                        <td class="px-2 py-1" x-text="new Date(candle[0]).toLocaleTimeString()"></td>
+                                        <td class="px-2 py-1" x-text="candle[1]"></td>
+                                        <td class="px-2 py-1" x-text="candle[2]"></td>
+                                        <td class="px-2 py-1" x-text="candle[3]"></td>
+                                        <td class="px-2 py-1" x-text="candle[4]"></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="live_candles.length === 0">
+                                    <td colspan="5" class="text-center py-2">Candle data not available yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <!-- Trade History Card -->
@@ -151,7 +166,7 @@
                 tradeHistory: [],
                 totalPnl: '0.00%',
                 signal: 'Initializing...',
-                strategyParams: {},
+                live_candles: [],
                 statusMessages: [],
                 lastModified: null,
 
@@ -173,7 +188,7 @@
                             this.tradeHistory = data.trade_history || [];
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
                             this.signal = data.signal || 'Waiting...';
-                            this.strategyParams = data.strategy_params || {};
+                            this.live_candles = data.live_candles || [];
                             this.statusMessages = data.status_messages || [];
 
                             // Check if the state has been significantly changed by the bot
