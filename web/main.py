@@ -15,7 +15,7 @@ from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
-from shared_state import status_messages
+from shared_state import status_messages, current_signal, strategy_params
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -76,7 +76,7 @@ def get_status():
     logger.info("API: /api/status called")
     
     # --- Fetch data with individual error handling for robustness ---
-    current_price, balance, state, history, candles, signal = None, {}, {}, [], [], "Waiting"
+    current_price, balance, state, history = None, {}, {}, []
 
     try:
         logger.info("API: Fetching current price...")
@@ -102,17 +102,6 @@ def get_status():
     except Exception as e:
         logger.error(f"API: Failed to load trade history: {e}", exc_info=True)
         
-    try:
-        logger.info("API: Fetching candles...")
-        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME)
-        if state.get('has_position'):
-            signal = "Waiting"
-        elif check_buy_signal(candles):
-            signal = "Buy"
-        elif check_sell_signal(candles):
-            signal = "Sell"
-    except Exception as e:
-        logger.error(f"API: Failed to fetch candles or determine signal: {e}", exc_info=True)
     # --- End of robust data fetching ---
 
     try:
@@ -153,8 +142,8 @@ def get_status():
             "pnl": pnl,
             "trade_history": processed_history,
             "total_pnl": total_pnl,
-            "candles": candles,
-            "signal": signal,
+            "signal": current_signal,
+            "strategy_params": strategy_params,
             "status_messages": status_messages,
             "last_modified": state.get('last_modified')
         }
@@ -165,7 +154,7 @@ def get_status():
             "symbol": SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
-            "candles": [], "signal": "Error",
+            "signal": "Error", "strategy_params": {},
             "status_messages": status_messages,
             "last_modified": None
         }

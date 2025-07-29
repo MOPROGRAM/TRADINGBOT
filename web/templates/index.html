@@ -50,6 +50,19 @@
                      <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
+                <!-- Strategy Parameters Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">Strategy Parameters</h2>
+                    <div class="space-y-2 text-sm">
+                        <template x-for="param in Object.keys(strategyParams)" :key="param">
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold capitalize" x-text="param.replace(/_/g, ' ')"></span>
+                                <span class="font-mono bg-gray-700 px-2 py-1 rounded" x-text="strategyParams[param]"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
                 <!-- Position Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
                     <h2 class="text-xl font-semibold mb-2">Open Position</h2>
@@ -63,19 +76,12 @@
 
                 <!-- Signal Analysis Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Signal Analysis</h2>
+                    <h2 class="text-xl font-semibold mb-2">Live Signal</h2>
                     <div class="flex items-center space-x-2">
-                        <span class="text-2xl" x-text="signal === 'Buy' ? '🟢' : (signal === 'Sell' ? '🔴' : '🟡')"></span>
+                        <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
                         <span class="text-lg" x-text="signal"></span>
                     </div>
-                    <div class="mt-4">
-                        <h3 class="text-lg font-semibold">Last 2 Candles (OHLC):</h3>
-                        <ul class="font-mono text-sm">
-                            <template x-for="(candle, index) in candles.slice(-2)" :key="index">
-                                <li x-text="`[${new Date(candle[0]).toLocaleTimeString()}] O: ${candle[1]} H: ${candle[2]} L: ${candle[3]} C: ${candle[4]}`"></li>
-                            </template>
-                        </ul>
-                    </div>
+                    <p class="text-xs text-gray-400 mt-2">This is the live signal calculated by the bot.</p>
                 </div>
 
                 <!-- Trade History Card -->
@@ -144,8 +150,8 @@
                 balance: {},
                 tradeHistory: [],
                 totalPnl: '0.00%',
-                candles: [],
-                signal: 'Waiting...',
+                signal: 'Initializing...',
+                strategyParams: {},
                 statusMessages: [],
                 lastModified: null,
 
@@ -166,8 +172,8 @@
                             this.balance = data.balance || {};
                             this.tradeHistory = data.trade_history || [];
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
-                            this.candles = data.candles || [];
                             this.signal = data.signal || 'Waiting...';
+                            this.strategyParams = data.strategy_params || {};
                             this.statusMessages = data.status_messages || [];
 
                             // Check if the state has been significantly changed by the bot

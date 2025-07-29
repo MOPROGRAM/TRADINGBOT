@@ -3,7 +3,7 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-def check_buy_signal(candles, volume_sma_period=20):
+def check_buy_signal(candles, volume_sma_period=10):
     """
     Checks for a 3-candle uptrend pattern confirmed by high volume.
     Candles are [timestamp, open, high, low, close, volume].
@@ -43,6 +43,31 @@ def check_buy_signal(candles, volume_sma_period=20):
     logger.info("BUY SIGNAL CONFIRMED: 3-candle uptrend with high volume.")
     return True
 
+
+def is_market_strong(b_candles, ema_period=50):
+    if len(b_candles) < ema_period:
+        logger.warning(f"Not enough market filter candle data to calculate EMA (need > {ema_period}).")
+        return False
+
+    closes = np.array([c[4] for c in b_candles])
+    
+    weights = np.exp(np.linspace(-1., 0., ema_period))
+    weights /= weights.sum()
+    ema = np.convolve(closes, weights, mode='full')[:len(closes)]
+    ema[:ema_period] = ema[ema_period]
+    
+    latest_price = closes[-1]
+    latest_ema = ema[-1]
+    
+    is_strong = latest_price > latest_ema
+    
+    if is_strong:
+        logger.info(f"Market Filter: BULLISH (BTC Price ${latest_price:.2f} > {ema_period}-EMA ${latest_ema:.2f})")
+    else:
+        logger.info(f"Market Filter: BEARISH (BTC Price ${latest_price:.2f} <= {ema_period}-EMA ${latest_ema:.2f})")
+        
+    return is_strong
+
 def is_market_bullish(btc_candles, ema_period=50):
     """
     Checks if the overall market is bullish based on a reference symbol's trend.
@@ -71,7 +96,7 @@ def is_market_bullish(btc_candles, ema_period=50):
         
     return is_bullish
 
-def check_sell_signal(candles, exit_ema_period=9):
+def check_sell_signal(candles, exit_ema_period=7):
     """
     Checks for two sell conditions:
     1. A sharp 3-candle downtrend pattern for trend reversal.
@@ -114,7 +139,7 @@ def check_sell_signal(candles, exit_ema_period=9):
 
     return False
 
-def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent):
+def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent, trailing_sl_percent):
     """
     Checks for Stop Loss, Take Profit, or Trailing Take Profit conditions.
     """

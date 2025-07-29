@@ -6,7 +6,7 @@ from exchange import get_exchange, fetch_candles, get_current_price, create_mark
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
-from shared_state import status_messages
+from shared_state import status_messages, current_signal, strategy_params
 
 # Load environment variables
 load_dotenv()
@@ -17,8 +17,25 @@ SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
 SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 0.5))
 TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
+TRAILING_TP_PERCENT = float(os.getenv('TRAILING_TAKE_PROFIT_PERCENT', 1.0))
+TRAILING_TP_ACTIVATION_PERCENT = float(os.getenv('TRAILING_TAKE_PROFIT_ACTIVATION_PERCENT', 0.5))
+TRAILING_SL_PERCENT = float(os.getenv('TRAILING_STOP_LOSS_PERCENT', 0.5))
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
+
+def initialize_strategy_params():
+    """
+    Populates the shared state with the bot's current strategy parameters.
+    """
+    strategy_params["timeframe"] = TIMEFRAME
+    # The periods are hardcoded in signals.py, so we'll reflect that.
+    strategy_params["buy_signal_period"] = 10 
+    strategy_params["sell_signal_period"] = 7
+    strategy_params["sl_percent"] = SL_PERCENT
+    strategy_params["tp_percent"] = TP_PERCENT
+    strategy_params["trailing_tp_percent"] = TRAILING_TP_PERCENT
+    strategy_params["trailing_tp_activation_percent"] = TRAILING_TP_ACTIVATION_PERCENT
+    logger.info(f"Strategy parameters initialized: {strategy_params}")
 
 def sync_position_with_exchange(exchange, symbol):
     """
@@ -134,6 +151,7 @@ def run_bot_tick():
     Runs a single check of the trading bot logic.
     """
     logger.info("Running bot tick...")
+    global current_signal # To modify the global variable
     
     exchange = get_exchange()
     state = load_state()
@@ -184,22 +202,23 @@ def run_bot_tick():
                 save_state(state)
                 logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
 
-            reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT)
+            reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
             
-            if reason in ["SL", "TP"]:
+            if reason in ["SL", "TP", "TTP"]:
                 if execute_sell_and_record_trade(exchange, state, reason, current_price):
                     return # End tick after successful action
 
         # Position Management
         if not state['has_position']:
             # Fetch candles for signal checks ONLY when we don't have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=2)
-            if not candles or len(candles) < 2:
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
+            if not candles or len(candles) < 11:
                 logger.warning("Could not fetch enough candles for signal check.")
                 return
 
             # Check for BUY signal
             if check_buy_signal(candles):
+                current_signal = "Buy"
                 balance = get_account_balance(exchange)
                 quote_currency = SYMBOL.split('/')[1]
                 amount_usdt = balance.get(quote_currency, {}).get('free', 0)
@@ -220,16 +239,26 @@ def run_bot_tick():
                         logger.info(msg)
         else:
             # Fetch candles for signal checks ONLY when we have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=2)
-            if not candles or len(candles) < 2:
+            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
+            if not candles or len(candles) < 11:
                 logger.warning("Could not fetch enough candles for signal check.")
                 return
             # Check for SELL signal (trend reversal)
             if check_sell_signal(candles):
+                current_signal = "Sell"
                 if execute_sell_and_record_trade(exchange, state, "Trend Reversal", current_price):
                     return # End tick after successful action
+            else:
+                current_signal = "Waiting (in position)"
+    
+    # If we reach here without a buy or sell signal, we are waiting.
+    if not state['has_position']:
+        current_signal = "Waiting (no position)"
 
     except Exception as e:
         error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"
         logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
         send_telegram_message(error_msg)
+
+# Initialize parameters once on startup
+initialize_strategy_params()
