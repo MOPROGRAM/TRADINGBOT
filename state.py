@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -9,6 +10,8 @@ HISTORY_FILE = 'trade_history.json'
 
 def save_state(state):
     try:
+        # Add a timestamp to track when the state was last modified.
+        state['last_modified'] = json.dumps(datetime.utcnow(), default=str)
         with open(STATE_FILE, 'w') as f:
             json.dump(state, f, indent=4)
         logger.info(f"Saved state: {state}")
@@ -39,7 +42,8 @@ def get_default_state():
             "size": None,
             "timestamp": None,
             "highest_price_after_tp": None
-        }
+        },
+        "last_modified": None
     }
 
 def clear_state():

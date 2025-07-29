@@ -144,18 +144,6 @@ def get_status():
 
         total_pnl = sum(trade.get('pnl_percent', 0) for trade in history) # Only sum closed trades
 
-        # --- Calculate Total Portfolio Value in USDT ---
-        total_portfolio_usdt = 0
-        base_currency, quote_currency = SYMBOL.split('/')
-        
-        quote_balance = balance.get(quote_currency, {}).get('free', 0)
-        base_balance = balance.get(base_currency, {}).get('free', 0)
-        
-        total_portfolio_usdt += quote_balance
-        if current_price and base_balance > 0:
-            total_portfolio_usdt += base_balance * current_price
-        # --- End Calculation ---
-
         return {
             "symbol": SYMBOL,
             "current_price": current_price,
@@ -165,10 +153,10 @@ def get_status():
             "pnl": pnl,
             "trade_history": processed_history,
             "total_pnl": total_pnl,
-            "total_portfolio_usdt": total_portfolio_usdt, # Add new value here
             "candles": candles,
             "signal": signal,
-            "status_messages": status_messages
+            "status_messages": status_messages,
+            "last_modified": state.get('last_modified')
         }
     except Exception as e:
         logger.error(f"API: Error during final data assembly: {e}", exc_info=True)
@@ -178,7 +166,8 @@ def get_status():
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
             "candles": [], "signal": "Error",
-            "status_messages": status_messages
+            "status_messages": status_messages,
+            "last_modified": None
         }
 
 if __name__ == "__main__":
