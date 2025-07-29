@@ -250,15 +250,16 @@ def run_bot_tick():
                     return # End tick after successful action
             else:
                 current_signal = "Waiting (in position)"
-    
-    # If we reach here without a buy or sell signal, we are waiting.
-    if not state['has_position']:
-        current_signal = "Waiting (no position)"
+        
+        # If we reach here without a buy or sell signal, we are waiting.
+        if not state['has_position']:
+            current_signal = "Waiting (no position)"
 
     except Exception as e:
         error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"
         logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
         send_telegram_message(error_msg)
+        current_signal = "Error"
 
 # Initialize parameters once on startup
 initialize_strategy_params()
