@@ -16,7 +16,7 @@ from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
-from shared_state import status_messages, current_signal, strategy_params
+from shared_state import status_messages, current_signal, strategy_params, live_candles
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -78,6 +78,8 @@ def get_status():
     
     # --- Fetch data with individual error handling for robustness ---
     current_price, balance, state, history = None, {}, {}, []
+
+    # live_candles is now imported directly from shared_state, so no file reading is needed.
 
     try:
         logger.info("API: Fetching current price...")
