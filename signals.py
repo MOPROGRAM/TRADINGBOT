@@ -11,12 +11,12 @@ def check_buy_signal(candles, volume_sma_period=10):
     # --- Data Validation ---
     if not all(isinstance(c, list) and len(c) == 6 for c in candles):
         logger.warning("Malformed candle data received. Skipping signal check.")
-        return False
+        return False, None
     # --- End Validation ---
 
     if len(candles) < volume_sma_period + 1:
         logger.warning(f"Not enough candle data to calculate volume SMA (need > {volume_sma_period}).")
-        return False
+        return False, None
 
     closes = np.array([c[4] for c in candles])
     lows = np.array([c[3] for c in candles])
@@ -32,7 +32,7 @@ def check_buy_signal(candles, volume_sma_period=10):
     )
 
     if not price_action_signal:
-        return False
+        return False, None
 
     # --- Volume Confirmation Check ---
     volume_sma = np.mean(volumes[-(volume_sma_period):])
@@ -44,10 +44,11 @@ def check_buy_signal(candles, volume_sma_period=10):
         logger.info(f"Volume confirmation: Latest volume ({latest_volume:.2f}) > {volume_sma_period}-period SMA ({volume_sma:.2f})")
     else:
         logger.info(f"Volume check failed: Latest volume ({latest_volume:.2f}) <= {volume_sma_period}-period SMA ({volume_sma:.2f})")
-        return False
+        return False, "Volume check failed"
 
-    logger.info("BUY SIGNAL CONFIRMED: 3-candle uptrend with high volume.")
-    return True
+    reason = f"BUY SIGNAL: 3-candle uptrend with high volume (Vol: {latest_volume:.2f} > SMA: {volume_sma:.2f})"
+    logger.info(reason)
+    return True, reason
 
 def check_sell_signal(candles, exit_ema_period=7):
     """
@@ -58,11 +59,11 @@ def check_sell_signal(candles, exit_ema_period=7):
     # --- Data Validation ---
     if not all(isinstance(c, list) and len(c) == 6 for c in candles):
         logger.warning("Malformed candle data received. Skipping signal check.")
-        return False
+        return False, None
     # --- End Validation ---
 
     if len(candles) < 3:
-        return False
+        return False, None
 
     closes = np.array([c[4] for c in candles])
     lows = np.array([c[3] for c in candles])
@@ -77,13 +78,14 @@ def check_sell_signal(candles, exit_ema_period=7):
     )
 
     if is_strong_downtrend:
-        logger.info("SELL SIGNAL: Strong 3-candle reversal pattern detected.")
-        return True
+        reason = f"SELL SIGNAL: Strong 3-candle reversal (Closes: {c1_close:.4f} > {c2_close:.4f} > {c3_close:.4f})"
+        logger.info(reason)
+        return True, reason
 
     # --- Condition 2: Price Below Short-Term EMA (Loss of Momentum) ---
     if len(candles) < exit_ema_period:
         logger.warning(f"Not enough candles for exit EMA ({exit_ema_period}). Skipping this check.")
-        return False
+        return False, None
 
     weights = np.exp(np.linspace(-1., 0., exit_ema_period))
     weights /= weights.sum()
@@ -93,10 +95,11 @@ def check_sell_signal(candles, exit_ema_period=7):
     latest_ema = ema[-1]
     
     if closes[-1] < latest_ema:
-        logger.info(f"SELL SIGNAL: Price ({closes[-1]:.4f}) crossed below {exit_ema_period}-EMA ({latest_ema:.4f}).")
-        return True
+        reason = f"SELL SIGNAL: Price ({closes[-1]:.4f}) crossed below {exit_ema_period}-EMA ({latest_ema:.4f})."
+        logger.info(reason)
+        return True, reason
 
-    return False
+    return False, None
 
 def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent, trailing_sl_percent):
     """

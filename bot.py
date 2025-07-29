@@ -7,7 +7,7 @@ from exchange import get_exchange, fetch_candles, get_current_price, create_mark
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
-from shared_state import status_messages, current_signal, strategy_params, live_candles
+from shared_state import status_messages, current_signal, current_signal_reason, strategy_params, live_candles
 
 # Load environment variables
 load_dotenv()
@@ -153,7 +153,7 @@ def run_bot_tick():
     Runs a single check of the trading bot logic.
     """
     logger.info("Running bot tick...")
-    global current_signal, live_candles # To modify the global variables
+    global current_signal, live_candles, current_signal_reason # To modify the global variables
     
     exchange = get_exchange()
     state = load_state()
@@ -231,8 +231,10 @@ def run_bot_tick():
         # Position Management
         if not state['has_position']:
             # Check for BUY signal
-            if check_buy_signal(candles):
+            is_buy_signal, buy_reason = check_buy_signal(candles)
+            if is_buy_signal:
                 current_signal = "Buy"
+                current_signal_reason = buy_reason
                 balance = get_account_balance(exchange)
                 quote_currency = SYMBOL.split('/')[1]
                 amount_usdt = balance.get(quote_currency, {}).get('free', 0)
@@ -248,21 +250,23 @@ def run_bot_tick():
                         state['position']['highest_price_after_tp'] = None # Ensure this is reset
                         save_state(state)
                         
-                        msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>"
+                        msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
                         send_telegram_message(msg)
                         logger.info(msg)
+            else:
+                current_signal = "Waiting (no position)"
+                current_signal_reason = buy_reason or "No buy signal detected."
         else:
             # Check for SELL signal (trend reversal)
-            if check_sell_signal(candles):
+            is_sell_signal, sell_reason = check_sell_signal(candles)
+            if is_sell_signal:
                 current_signal = "Sell"
-                if execute_sell_and_record_trade(exchange, state, "Trend Reversal", current_price):
+                current_signal_reason = sell_reason
+                if execute_sell_and_record_trade(exchange, state, sell_reason, current_price):
                     return # End tick after successful action
             else:
                 current_signal = "Waiting (in position)"
-        
-        # If we reach here without a buy or sell signal, we are waiting.
-        if not state['has_position']:
-            current_signal = "Waiting (no position)"
+                current_signal_reason = sell_reason or "No sell signal detected."
 
     except Exception as e:
         error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"

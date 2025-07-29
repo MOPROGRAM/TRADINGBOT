@@ -16,7 +16,7 @@ from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
-from shared_state import status_messages, current_signal, strategy_params, live_candles
+from shared_state import status_messages, current_signal, current_signal_reason, strategy_params, live_candles
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -146,6 +146,7 @@ def get_status():
             "trade_history": processed_history,
             "total_pnl": total_pnl,
             "signal": current_signal,
+            "signal_reason": current_signal_reason,
             "strategy_params": strategy_params,
             "live_candles": live_candles, # This is now read directly from shared_state
             "status_messages": status_messages,
@@ -158,7 +159,7 @@ def get_status():
             "symbol": SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
-            "signal": "Error", "strategy_params": {}, "live_candles": live_candles,
+            "signal": "Error", "signal_reason": "An API error occurred.", "strategy_params": {}, "live_candles": live_candles,
             "status_messages": status_messages,
             "last_modified": None
         }

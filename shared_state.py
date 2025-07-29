@@ -6,6 +6,7 @@ status_messages = []
 
 # Holds the current signal calculated by the bot
 current_signal = "Initializing"
+current_signal_reason = "Waiting for data..."
 
 # Holds the parameters of the current strategy
 strategy_params = {

@@ -50,21 +50,6 @@
                      <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
-                <!-- Strategy Parameters Card -->
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Strategy Parameters</h2>
-                    <div class="space-y-2 text-sm" x-show="Object.keys(strategy_params).length > 0">
-                        <template x-for="key in Object.keys(strategy_params)" :key="key">
-                            <div class="flex justify-between items-center">
-                                <span class="text-gray-400" x-text="key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())"></span>
-                                <span class="font-mono" x-text="strategy_params[key]"></span>
-                            </div>
-                        </template>
-                    </div>
-                    <p x-show="Object.keys(strategy_params).length === 0">Loading params...</p>
-                </div>
-
-
                 <!-- Position Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
                     <h2 class="text-xl font-semibold mb-2">Open Position</h2>
@@ -79,10 +64,11 @@
                 <!-- Signal Analysis Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
                     <h2 class="text-xl font-semibold mb-2">Live Signal & Candles</h2>
-                    <div class="flex items-center space-x-2 mb-3">
+                    <div class="flex items-center space-x-2 mb-1">
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
                         <span class="text-lg" x-text="signal"></span>
                     </div>
+                    <p class="text-xs text-gray-400 mb-3" x-text="signalReason"></p>
                     <h3 class="text-md font-semibold mb-1">Candles Used for Calculation:</h3>
                     <div class="max-h-48 overflow-y-auto text-xs font-mono">
                         <table class="w-full text-left">
@@ -180,6 +166,7 @@
                 tradeHistory: [],
                 totalPnl: '0.00%',
                 signal: 'Initializing...',
+                signalReason: 'Waiting for data...',
                 strategy_params: {},
                 live_candles: [],
                 statusMessages: [],
@@ -203,6 +190,7 @@
                             this.tradeHistory = data.trade_history || [];
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
                             this.signal = data.signal || 'Waiting...';
+                            this.signalReason = data.signal_reason || 'N/A';
                             this.strategy_params = data.strategy_params || {};
                             this.live_candles = data.live_candles || [];
                             this.statusMessages = data.status_messages || [];
