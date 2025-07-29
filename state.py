@@ -11,7 +11,7 @@ HISTORY_FILE = 'trade_history.json'
 def save_state(state):
     try:
         # Add a timestamp to track when the state was last modified.
-        state['last_modified'] = json.dumps(datetime.utcnow(), default=str)
+        state['last_modified'] = datetime.utcnow().isoformat()
         with open(STATE_FILE, 'w') as f:
             json.dump(state, f, indent=4)
         logger.info(f"Saved state: {state}")
