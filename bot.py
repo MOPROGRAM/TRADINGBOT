@@ -188,10 +188,15 @@ def run_bot_tick():
     # --- End of Real-time State Validation ---
 
     try:
+        # --- Fetch all required data at the beginning ---
         current_price = get_current_price(exchange, SYMBOL)
-        if not current_price:
-            logger.warning("Could not fetch current price.")
+        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
+        live_candles = candles # Update shared state immediately
+
+        if not current_price or not candles or len(candles) < 11:
+            logger.warning("Could not fetch all required data (price or candles). Skipping tick.")
             return
+        # --- End of data fetching ---
 
         # Check for SL/TP first if we have a position
         if state['has_position']:
@@ -210,13 +215,6 @@ def run_bot_tick():
 
         # Position Management
         if not state['has_position']:
-            # Fetch candles for signal checks ONLY when we don't have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
-            live_candles = candles
-            if not candles or len(candles) < 11:
-                logger.warning("Could not fetch enough candles for signal check.")
-                return
-
             # Check for BUY signal
             if check_buy_signal(candles):
                 current_signal = "Buy"
@@ -239,12 +237,6 @@ def run_bot_tick():
                         send_telegram_message(msg)
                         logger.info(msg)
         else:
-            # Fetch candles for signal checks ONLY when we have a position
-            candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
-            live_candles = candles
-            if not candles or len(candles) < 11:
-                logger.warning("Could not fetch enough candles for signal check.")
-                return
             # Check for SELL signal (trend reversal)
             if check_sell_signal(candles):
                 current_signal = "Sell"
