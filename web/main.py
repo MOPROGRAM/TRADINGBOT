@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -15,7 +16,7 @@ from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
-from shared_state import status_messages, current_signal, strategy_params, live_candles
+from shared_state import status_messages, current_signal, strategy_params
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -76,7 +77,15 @@ def get_status():
     logger.info("API: /api/status called")
     
     # --- Fetch data with individual error handling for robustness ---
-    current_price, balance, state, history = None, {}, {}, []
+    current_price, balance, state, history, live_candles = None, {}, {}, [], []
+
+    try:
+        # Load live candles from the file written by the bot
+        if os.path.exists('live_candles.json'):
+            with open('live_candles.json', 'r') as f:
+                live_candles = json.load(f)
+    except Exception as e:
+        logger.error(f"API: Failed to read live_candles.json: {e}")
 
     try:
         logger.info("API: Fetching current price...")

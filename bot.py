@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 
 from logger import get_logger
@@ -191,7 +192,13 @@ def run_bot_tick():
         # --- Fetch all required data at the beginning ---
         current_price = get_current_price(exchange, SYMBOL)
         candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
-        live_candles = candles # Update shared state immediately
+        
+        # Save candles to a file for the web UI to read
+        try:
+            with open('live_candles.json', 'w') as f:
+                json.dump(candles, f)
+        except Exception as e:
+            logger.error(f"Failed to write live_candles.json: {e}")
 
         if not current_price or not candles or len(candles) < 11:
             logger.warning("Could not fetch all required data (price or candles). Skipping tick.")

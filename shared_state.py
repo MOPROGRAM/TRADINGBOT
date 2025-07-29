@@ -7,9 +7,6 @@ status_messages = []
 # Holds the current signal calculated by the bot
 current_signal = "Initializing"
 
-# Holds the candles used for the latest signal calculation
-live_candles = []
-
 # Holds the parameters of the current strategy
 strategy_params = {
     "timeframe": "N/A",
