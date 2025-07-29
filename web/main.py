@@ -77,15 +77,7 @@ def get_status():
     logger.info("API: /api/status called")
     
     # --- Fetch data with individual error handling for robustness ---
-    current_price, balance, state, history, live_candles = None, {}, {}, [], []
-
-    try:
-        # Load live candles from the file written by the bot
-        if os.path.exists('live_candles.json'):
-            with open('live_candles.json', 'r') as f:
-                live_candles = json.load(f)
-    except Exception as e:
-        logger.error(f"API: Failed to read live_candles.json: {e}")
+    current_price, balance, state, history = None, {}, {}, []
 
     try:
         logger.info("API: Fetching current price...")
@@ -153,7 +145,7 @@ def get_status():
             "total_pnl": total_pnl,
             "signal": current_signal,
             "strategy_params": strategy_params,
-            "live_candles": live_candles,
+            "live_candles": live_candles, # This is now read directly from shared_state
             "status_messages": status_messages,
             "last_modified": state.get('last_modified')
         }
@@ -164,7 +156,7 @@ def get_status():
             "symbol": SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
-            "signal": "Error", "strategy_params": {}, "live_candles": [],
+            "signal": "Error", "strategy_params": {}, "live_candles": live_candles,
             "status_messages": status_messages,
             "last_modified": None
         }

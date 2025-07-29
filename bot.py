@@ -194,12 +194,12 @@ def run_bot_tick():
         current_price = get_current_price(exchange, SYMBOL)
         candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
         
-        # Save candles to a file for the web UI to read
-        try:
-            with open('live_candles.json', 'w') as f:
-                json.dump(candles, f)
-        except Exception as e:
-            logger.error(f"Failed to write live_candles.json: {e}")
+        # Update shared state for the web UI
+        if candles:
+            live_candles[:] = candles
+        else:
+            live_candles[:] = []
+
 
         if not current_price or not candles or len(candles) < 11:
             logger.warning("Could not fetch all required data (price or candles). Skipping tick.")

@@ -17,3 +17,6 @@ strategy_params = {
     "trailing_tp_percent": "N/A",
     "trailing_tp_activation_percent": "N/A",
 }
+
+# Holds the latest candle data for the web UI
+live_candles = []
