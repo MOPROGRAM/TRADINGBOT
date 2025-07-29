@@ -8,6 +8,12 @@ def check_buy_signal(candles, volume_sma_period=10):
     Checks for a 3-candle uptrend pattern confirmed by high volume.
     Candles are [timestamp, open, high, low, close, volume].
     """
+    # --- Data Validation ---
+    if not all(isinstance(c, list) and len(c) == 6 for c in candles):
+        logger.warning("Malformed candle data received. Skipping signal check.")
+        return False
+    # --- End Validation ---
+
     if len(candles) < volume_sma_period + 1:
         logger.warning(f"Not enough candle data to calculate volume SMA (need > {volume_sma_period}).")
         return False
@@ -45,6 +51,12 @@ def check_buy_signal(candles, volume_sma_period=10):
 
 
 def is_market_strong(b_candles, ema_period=50):
+    # --- Data Validation ---
+    if not all(isinstance(c, list) and len(c) == 6 for c in b_candles):
+        logger.warning("Malformed candle data received for market strength check. Skipping.")
+        return False
+    # --- End Validation ---
+
     if len(b_candles) < ema_period:
         logger.warning(f"Not enough market filter candle data to calculate EMA (need > {ema_period}).")
         return False
@@ -72,6 +84,12 @@ def is_market_bullish(btc_candles, ema_period=50):
     """
     Checks if the overall market is bullish based on a reference symbol's trend.
     """
+    # --- Data Validation ---
+    if not all(isinstance(c, list) and len(c) == 6 for c in btc_candles):
+        logger.warning("Malformed candle data received for market bullish check. Skipping.")
+        return False
+    # --- End Validation ---
+
     if len(btc_candles) < ema_period:
         logger.warning(f"Not enough market filter candle data to calculate EMA (need > {ema_period}).")
         return False
@@ -102,6 +120,12 @@ def check_sell_signal(candles, exit_ema_period=7):
     1. A sharp 3-candle downtrend pattern for trend reversal.
     2. Price closing below a short-term EMA, indicating loss of momentum.
     """
+    # --- Data Validation ---
+    if not all(isinstance(c, list) and len(c) == 6 for c in candles):
+        logger.warning("Malformed candle data received. Skipping signal check.")
+        return False
+    # --- End Validation ---
+
     if len(candles) < 3:
         return False
 
