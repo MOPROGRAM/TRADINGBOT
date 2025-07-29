@@ -49,71 +49,6 @@ def check_buy_signal(candles, volume_sma_period=10):
     logger.info("BUY SIGNAL CONFIRMED: 3-candle uptrend with high volume.")
     return True
 
-
-def is_market_strong(b_candles, ema_period=50):
-    # --- Data Validation ---
-    if not all(isinstance(c, list) and len(c) == 6 for c in b_candles):
-        logger.warning("Malformed candle data received for market strength check. Skipping.")
-        return False
-    # --- End Validation ---
-
-    if len(b_candles) < ema_period:
-        logger.warning(f"Not enough market filter candle data to calculate EMA (need > {ema_period}).")
-        return False
-
-    closes = np.array([c[4] for c in b_candles])
-    
-    weights = np.exp(np.linspace(-1., 0., ema_period))
-    weights /= weights.sum()
-    ema = np.convolve(closes, weights, mode='full')[:len(closes)]
-    ema[:ema_period] = ema[ema_period]
-    
-    latest_price = closes[-1]
-    latest_ema = ema[-1]
-    
-    is_strong = latest_price > latest_ema
-    
-    if is_strong:
-        logger.info(f"Market Filter: BULLISH (BTC Price ${latest_price:.2f} > {ema_period}-EMA ${latest_ema:.2f})")
-    else:
-        logger.info(f"Market Filter: BEARISH (BTC Price ${latest_price:.2f} <= {ema_period}-EMA ${latest_ema:.2f})")
-        
-    return is_strong
-
-def is_market_bullish(btc_candles, ema_period=50):
-    """
-    Checks if the overall market is bullish based on a reference symbol's trend.
-    """
-    # --- Data Validation ---
-    if not all(isinstance(c, list) and len(c) == 6 for c in btc_candles):
-        logger.warning("Malformed candle data received for market bullish check. Skipping.")
-        return False
-    # --- End Validation ---
-
-    if len(btc_candles) < ema_period:
-        logger.warning(f"Not enough market filter candle data to calculate EMA (need > {ema_period}).")
-        return False
-
-    closes = np.array([c[4] for c in btc_candles])
-    
-    # Calculate the Exponential Moving Average
-    weights = np.exp(np.linspace(-1., 0., ema_period))
-    weights /= weights.sum()
-    ema = np.convolve(closes, weights, mode='full')[:len(closes)]
-    ema[:ema_period] = ema[ema_period]
-    
-    latest_price = closes[-1]
-    latest_ema = ema[-1]
-    
-    is_bullish = latest_price > latest_ema
-    
-    if is_bullish:
-        logger.info(f"Market Filter: BULLISH (BTC Price ${latest_price:.2f} > {ema_period}-EMA ${latest_ema:.2f})")
-    else:
-        logger.info(f"Market Filter: BEARISH (BTC Price ${latest_price:.2f} <= {ema_period}-EMA ${latest_ema:.2f})")
-        
-    return is_bullish
-
 def check_sell_signal(candles, exit_ema_period=7):
     """
     Checks for two sell conditions:
@@ -171,7 +106,8 @@ def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_
         return None, None
 
     entry_price = position_state["position"]["entry_price"]
-    highest_price = position_state["position"].get("highest_price", entry_price)
+    # Use 'highest_price_after_tp' to match the key set in bot.py
+    highest_price = position_state["position"].get("highest_price_after_tp", entry_price)
 
     # Stop Loss Check
     sl_price = entry_price * (1 - sl_percent / 100)
@@ -184,7 +120,8 @@ def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_
     is_trailing_active = current_price > activation_price
 
     if is_trailing_active:
-        trailing_sl_price = highest_price * (1 - trailing_tp_percent / 100)
+        # Correctly use the trailing_sl_percent parameter for the calculation
+        trailing_sl_price = highest_price * (1 - trailing_sl_percent / 100)
         
         if current_price < trailing_sl_price:
             pnl = ((current_price - entry_price) / entry_price) * 100

@@ -36,6 +36,7 @@ def initialize_strategy_params():
     strategy_params["tp_percent"] = TP_PERCENT
     strategy_params["trailing_tp_percent"] = TRAILING_TP_PERCENT
     strategy_params["trailing_tp_activation_percent"] = TRAILING_TP_ACTIVATION_PERCENT
+    strategy_params["trailing_sl_percent"] = TRAILING_SL_PERCENT
     logger.info(f"Strategy parameters initialized: {strategy_params}")
 
 def sync_position_with_exchange(exchange, symbol):
@@ -208,11 +209,18 @@ def run_bot_tick():
         # Check for SL/TP first if we have a position
         if state['has_position']:
             # --- Trailing Stop Logic ---
-            highest_price = state['position'].get('highest_price_after_tp')
-            if highest_price and current_price > highest_price:
-                state['position']['highest_price_after_tp'] = current_price
-                save_state(state)
-                logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
+            entry_price = state['position']['entry_price']
+            activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
+            
+            # Check if trailing stop loss is active and update the highest price accordingly
+            if current_price > activation_price:
+                highest_price = state['position'].get('highest_price_after_tp')
+                
+                # Initialize or update the highest price
+                if not highest_price or current_price > highest_price:
+                    state['position']['highest_price_after_tp'] = current_price
+                    save_state(state)
+                    logger.info(f"Trailing stop price updated. New highest price: {current_price:.4f}")
 
             reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
             
