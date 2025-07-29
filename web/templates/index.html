@@ -50,6 +50,20 @@
                      <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
+                <!-- Strategy Parameters Card -->
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">Strategy Parameters</h2>
+                    <div class="space-y-2 text-sm" x-show="Object.keys(strategy_params).length > 0">
+                        <template x-for="key in Object.keys(strategy_params)" :key="key">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400" x-text="key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())"></span>
+                                <span class="font-mono" x-text="strategy_params[key]"></span>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="Object.keys(strategy_params).length === 0">Loading params...</p>
+                </div>
+
 
                 <!-- Position Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
@@ -166,6 +180,7 @@
                 tradeHistory: [],
                 totalPnl: '0.00%',
                 signal: 'Initializing...',
+                strategy_params: {},
                 live_candles: [],
                 statusMessages: [],
                 lastModified: null,
@@ -188,6 +203,7 @@
                             this.tradeHistory = data.trade_history || [];
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
                             this.signal = data.signal || 'Waiting...';
+                            this.strategy_params = data.strategy_params || {};
                             this.live_candles = data.live_candles || [];
                             this.statusMessages = data.status_messages || [];
 
