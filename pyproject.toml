@@ -15,8 +15,6 @@ jinja2 = "*"
 python-multipart = "*"
 numpy = "1.24.3"
 gunicorn = "*"
-pandas = "1.5.3"
-pandas-ta = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
