@@ -32,7 +32,7 @@ def check_buy_signal(candles, volume_sma_period=10):
     )
 
     if not price_action_signal:
-        return False, None
+        return False, "Price action failed (no 3-candle uptrend)"
 
     # --- Volume Confirmation Check ---
     volume_sma = np.mean(volumes[-(volume_sma_period):])
@@ -99,7 +99,7 @@ def check_sell_signal(candles, exit_ema_period=7):
         logger.info(reason)
         return True, reason
 
-    return False, None
+    return False, "No sell condition met"
 
 def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent, trailing_sl_percent):
     """

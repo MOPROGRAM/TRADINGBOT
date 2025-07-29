@@ -203,6 +203,8 @@ def run_bot_tick():
 
         if not current_price or not candles or len(candles) < 11:
             logger.warning("Could not fetch all required data (price or candles). Skipping tick.")
+            current_signal = "Data Error"
+            current_signal_reason = "Failed to fetch price or full candle data."
             return
         # --- End of data fetching ---
 
@@ -273,6 +275,7 @@ def run_bot_tick():
         logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
         send_telegram_message(error_msg)
         current_signal = "Error"
+        current_signal_reason = f"An unexpected error occurred: {e}"
 
 # Initialize parameters once on startup
 initialize_strategy_params()
