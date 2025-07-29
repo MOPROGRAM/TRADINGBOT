@@ -20,7 +20,7 @@ SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 0.5))
 TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
-TRAILING_TP_ACTIVATION_PERCENT = float(os.getenv('TRAILING_TP_ACTIVATION_PERCENT', 0.4))
+TRAILING_TP_ACTIVATION_PERCENT = float(os.getenv('TRAILING_TP_ACTIVATION_PERCENT', 0.25))
 TRAILING_TP_PERCENT = float(os.getenv('TRAILING_TP_PERCENT', 0.2))
 
 # --- Strategy Parameters ---
