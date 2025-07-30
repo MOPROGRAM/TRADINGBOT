@@ -11,12 +11,12 @@ def check_buy_signal(candles, volume_sma_period=10):
     # --- Data Validation ---
     if not all(isinstance(c, list) and len(c) == 6 for c in candles):
         logger.warning("Malformed candle data received. Skipping signal check.")
-        return False, None
+        return False, "Malformed candle data"
     # --- End Validation ---
 
     if len(candles) < volume_sma_period + 1:
         logger.warning(f"Not enough candle data to calculate volume SMA (need > {volume_sma_period}).")
-        return False, None
+        return False, f"Not enough candles for SMA (need > {volume_sma_period})"
 
     closes = np.array([c[4] for c in candles])
     lows = np.array([c[3] for c in candles])
@@ -59,11 +59,11 @@ def check_sell_signal(candles, exit_ema_period=7):
     # --- Data Validation ---
     if not all(isinstance(c, list) and len(c) == 6 for c in candles):
         logger.warning("Malformed candle data received. Skipping signal check.")
-        return False, None
+        return False, "Malformed candle data"
     # --- End Validation ---
 
     if len(candles) < 3:
-        return False, None
+        return False, "Not enough candles for sell check (need >= 3)"
 
     closes = np.array([c[4] for c in candles])
     lows = np.array([c[3] for c in candles])
@@ -85,7 +85,7 @@ def check_sell_signal(candles, exit_ema_period=7):
     # --- Condition 2: Price Below Short-Term EMA (Loss of Momentum) ---
     if len(candles) < exit_ema_period:
         logger.warning(f"Not enough candles for exit EMA ({exit_ema_period}). Skipping this check.")
-        return False, None
+        return False, f"Not enough candles for EMA (need >= {exit_ema_period})"
 
     weights = np.exp(np.linspace(-1., 0., exit_ema_period))
     weights /= weights.sum()
