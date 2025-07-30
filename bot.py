@@ -225,27 +225,27 @@ def run_bot_tick():
             # Check for SL/TP first if we have a position
             if state['has_position']:
                 # --- Trailing Stop Logic ---
-            entry_price = state['position']['entry_price']
-            activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
-            
-            # Check if trailing stop loss is active and update the highest price accordingly
-            if current_price > activation_price:
-                highest_price = state['position'].get('highest_price_after_tp')
+                entry_price = state['position']['entry_price']
+                activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
                 
-                # Initialize or update the highest price
-                if not highest_price or current_price > highest_price:
-                    state['position']['highest_price_after_tp'] = current_price
-                    save_state(state)
-                    logger.info(f"Trailing stop price updated. New highest price: {current_price:.4f}")
+                # Check if trailing stop loss is active and update the highest price accordingly
+                if current_price > activation_price:
+                    highest_price = state['position'].get('highest_price_after_tp')
+                    
+                    # Initialize or update the highest price
+                    if not highest_price or current_price > highest_price:
+                        state['position']['highest_price_after_tp'] = current_price
+                        save_state(state)
+                        logger.info(f"Trailing stop price updated. New highest price: {current_price:.4f}")
 
-            reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
-            
-            if reason in ["SL", "TP", "TTP"]:
-                if execute_sell_and_record_trade(exchange, state, reason, current_price):
-                    return # End tick after successful action
+                reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
+                
+                if reason in ["SL", "TP", "TTP"]:
+                    if execute_sell_and_record_trade(exchange, state, reason, current_price):
+                        return # End tick after successful action
 
-        # Position Management
-        if not state['has_position']:
+            # Position Management
+            if not state['has_position']:
             # Check for BUY signal
             is_buy_signal, buy_reason = check_buy_signal(candles)
             if is_buy_signal:
