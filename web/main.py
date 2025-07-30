@@ -1,3 +1,4 @@
+
 import os
 import sys
 import json
@@ -17,7 +18,7 @@ from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
-from shared_state import shared_lock, status_messages, current_signal, current_signal_reason, strategy_params, live_candles
+from shared_state import strategy_params
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -79,13 +80,15 @@ def get_status_sync():
 def get_status():
     logger.info("API: /api/status called")
     
-    # --- Thread-Safe read of shared data ---
-    with shared_lock:
-        # Create copies of the shared data to avoid holding the lock for too long
-        api_signal = current_signal
-        api_signal_reason = current_signal_reason
-        api_live_candles = list(live_candles)
-        api_status_messages = list(status_messages)
+    # --- Read bot status from the dedicated JSON file ---
+    bot_status = {}
+    try:
+        with open('web_status.json', 'r') as f:
+            bot_status = json.load(f)
+    except FileNotFoundError:
+        logger.warning("web_status.json not found. Bot might be initializing.")
+    except json.JSONDecodeError:
+        logger.error("Failed to decode web_status.json.")
 
     # --- Fetch data with individual error handling for robustness ---
     current_price, balance, state, history = None, {}, {}, []
@@ -156,27 +159,22 @@ def get_status():
             "pnl": pnl,
             "trade_history": processed_history,
             "total_pnl": total_pnl,
-            "signal": api_signal,
-            "signal_reason": api_signal_reason,
+            "signal": bot_status.get("signal", "Initializing"),
+            "signal_reason": bot_status.get("signal_reason", "Waiting for bot to start..."),
             "strategy_params": strategy_params,
-            "live_candles": api_live_candles,
-            "status_messages": api_status_messages,
+            "live_candles": bot_status.get("live_candles", []),
+            "status_messages": [], # Status messages are now handled by the bot's log/state
             "last_modified": state.get('last_modified')
         }
     except Exception as e:
         logger.error(f"API: Error during final data assembly: {e}", exc_info=True)
         # Return a valid structure even on final error to prevent 502
-        with shared_lock:
-            api_signal = current_signal
-            api_signal_reason = current_signal_reason
-            api_live_candles = list(live_candles)
-            api_status_messages = list(status_messages)
         return {
             "symbol": SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
-            "signal": api_signal, "signal_reason": api_signal_reason, "strategy_params": {}, "live_candles": api_live_candles,
-            "status_messages": api_status_messages,
+            "signal": "API Error", "signal_reason": "Failed to assemble data", "strategy_params": {}, "live_candles": [],
+            "status_messages": [],
             "last_modified": None
         }
 
