@@ -27,8 +27,8 @@ def fetch_candles(exchange, symbol, timeframe, limit=3):
     try:
         candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
         # CCXT returns: [timestamp, open, high, low, close, volume]
-        # We only need: [timestamp, open, high, low, close]
-        return [[c[0], c[1], c[2], c[3], c[4]] for c in candles]
+        # Ensure all 6 components are returned for signal analysis.
+        return candles
     except ccxt.BaseError as e:
         logger.error(f"Error fetching candles for {symbol}: {e}")
         return []
