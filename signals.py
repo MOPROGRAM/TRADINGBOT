@@ -31,27 +31,34 @@ def check_buy_signal(candles, volume_sma_period=10):
         c1_low < c2_low < c3_low
     )
 
-    if not price_action_signal:
-        return False, "Price action failed (no 3-candle uptrend)"
-
     # --- Volume Confirmation Check (More Active Strategy) ---
     volume_sma = np.mean(volumes[-(volume_sma_period):])
     latest_volume = volumes[-1]
-
-    # Make the bot more active by requiring volume to be at least 80% of the SMA
     volume_threshold = volume_sma * 0.8
     volume_signal = latest_volume > volume_threshold
 
-    if volume_signal:
-        logger.info(f"Volume confirmation: Latest volume ({latest_volume:.2f}) > 80% of SMA ({volume_threshold:.2f})")
+    # --- Combine Reasons for a Full Analysis ---
+    reasons = []
+    if not price_action_signal:
+        reasons.append("Price action failed (no 3-candle uptrend)")
     else:
-        reason = f"Volume check failed (Vol: {latest_volume:.2f} <= 80% of SMA: {volume_threshold:.2f})"
-        logger.info(reason)
-        return False, reason
+        reasons.append("Price action OK")
 
-    reason = f"BUY SIGNAL: 3-candle uptrend with volume confirmation (Vol: {latest_volume:.2f} > {volume_threshold:.2f})"
-    logger.info(reason)
-    return True, reason
+    if not volume_signal:
+        reasons.append(f"Volume failed (Vol: {latest_volume:.2f} <= 80% SMA: {volume_threshold:.2f})")
+    else:
+        reasons.append("Volume OK")
+
+    final_reason = " | ".join(reasons)
+
+    # Final decision
+    if price_action_signal and volume_signal:
+        success_reason = f"BUY SIGNAL: 3-candle uptrend with volume confirmation (Vol: {latest_volume:.2f} > {volume_threshold:.2f})"
+        logger.info(success_reason)
+        return True, success_reason
+    else:
+        logger.info(f"No buy signal: {final_reason}")
+        return False, final_reason
 
 def check_sell_signal(candles, exit_ema_period=7):
     """
