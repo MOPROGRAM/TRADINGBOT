@@ -1,7 +1,8 @@
 import os
 import sys
 import json
-import asyncio
+import time
+import threading
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,22 +23,24 @@ logger = get_logger(__name__)
 app = FastAPI()
 exchange = get_exchange()
 
-async def run_bot_in_background():
+def run_bot_in_background():
     """
-    A simple asyncio background task to run the bot tick periodically.
+    A simple threading background task to run the bot tick periodically.
+    This runs in a separate thread to avoid blocking the FastAPI event loop.
     """
     while True:
         try:
-            logger.info("Running bot tick from background task...")
+            logger.info("Running bot tick from background thread...")
             run_bot_tick()
         except Exception as e:
-            logger.error(f"An error occurred in the bot background task: {e}", exc_info=True)
-        await asyncio.sleep(POLL_SECONDS)
+            logger.error(f"An error occurred in the bot background thread: {e}", exc_info=True)
+        time.sleep(POLL_SECONDS)
 
 @app.on_event("startup")
-async def startup_event():
-    logger.info("Starting bot as a background task...")
-    asyncio.create_task(run_bot_in_background())
+def startup_event():
+    logger.info("Starting bot in a background thread...")
+    thread = threading.Thread(target=run_bot_in_background, daemon=True)
+    thread.start()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
