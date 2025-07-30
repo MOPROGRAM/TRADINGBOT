@@ -214,13 +214,17 @@ def run_bot_tick():
 
         # --- Fetch all required data at the beginning ---
         current_price = get_current_price(exchange, SYMBOL)
-        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
+        # Fetch more candles for indicator calculations (e.g., RSI, MACD)
+        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=100)
         
         # --- End of data fetching ---
-
-        # Check for SL/TP first if we have a position
-        if state['has_position']:
-            # --- Trailing Stop Logic ---
+        if not current_price or not candles or len(candles) < 50: # Ensure enough data for indicators
+            signal = "Data Error"
+            signal_reason = "Failed to fetch price or enough candle data for analysis."
+        else:
+            # Check for SL/TP first if we have a position
+            if state['has_position']:
+                # --- Trailing Stop Logic ---
             entry_price = state['position']['entry_price']
             activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
             
