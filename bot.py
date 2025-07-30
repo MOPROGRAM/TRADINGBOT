@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from dotenv import load_dotenv
 
 from logger import get_logger
@@ -155,6 +156,13 @@ def run_bot_tick():
     logger.info("Running bot tick...")
     global current_signal, live_candles, current_signal_reason # To modify the global variables
     
+    # --- Debugging: Add messages to UI ---
+    # Limit messages to avoid clutter
+    if len(status_messages) > 10:
+        status_messages[:] = status_messages[:10]
+    status_messages.insert(0, f"DEBUG: Tick run at {time.strftime('%H:%M:%S')}")
+    # --- End Debugging ---
+
     exchange = get_exchange()
     state = load_state()
 
@@ -203,9 +211,12 @@ def run_bot_tick():
 
         if not current_price or not candles or len(candles) < 11:
             logger.warning("Could not fetch all required data (price or candles). Skipping tick.")
+            status_messages.insert(0, "DEBUG: Exiting tick due to data fetch failure.")
             current_signal = "Data Error"
             current_signal_reason = "Failed to fetch price or full candle data."
             return
+        
+        status_messages.insert(0, "DEBUG: Data fetched successfully.")
         # --- End of data fetching ---
 
         # Check for SL/TP first if we have a position
@@ -234,6 +245,7 @@ def run_bot_tick():
         if not state['has_position']:
             # Check for BUY signal
             is_buy_signal, buy_reason = check_buy_signal(candles)
+            status_messages.insert(0, f"DEBUG: Buy check returned: {buy_reason}")
             if is_buy_signal:
                 current_signal = "Buy"
                 current_signal_reason = buy_reason
@@ -261,6 +273,7 @@ def run_bot_tick():
         else:
             # Check for SELL signal (trend reversal)
             is_sell_signal, sell_reason = check_sell_signal(candles)
+            status_messages.insert(0, f"DEBUG: Sell check returned: {sell_reason}")
             if is_sell_signal:
                 current_signal = "Sell"
                 current_signal_reason = sell_reason
@@ -274,6 +287,7 @@ def run_bot_tick():
         error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"
         logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
         send_telegram_message(error_msg)
+        status_messages.insert(0, f"DEBUG: An exception occurred: {e}")
         current_signal = "Error"
         current_signal_reason = f"An unexpected error occurred: {e}"
 
