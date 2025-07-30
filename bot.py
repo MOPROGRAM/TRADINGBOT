@@ -30,7 +30,6 @@ def initialize_strategy_params():
     Populates the shared state with the bot's current strategy parameters.
     """
     strategy_params["timeframe"] = TIMEFRAME
-    # The periods are hardcoded in signals.py, so we'll reflect that.
     strategy_params["buy_signal_period"] = 10 
     strategy_params["sell_signal_period"] = 7
     strategy_params["sl_percent"] = SL_PERCENT
@@ -43,82 +42,67 @@ def initialize_strategy_params():
 def sync_position_with_exchange(exchange, symbol):
     """
     Checks the exchange for an existing position and syncs it with the local state.
-    This is useful if the bot restarts and needs to pick up an existing trade.
     """
     logger.info("Syncing position state with exchange...")
     state = load_state()
 
-    # If local state already has a position, trust it for now.
     if state.get('has_position'):
         logger.info("Local state already shows a position. Skipping sync.")
         return
 
-    # Check balance on the exchange
     balance = get_account_balance(exchange)
     base_currency = symbol.split('/')[0]
-    
-    # Check if we have a significant amount of the base currency
     base_currency_balance = balance.get(base_currency, {}).get('free', 0)
-    
-    # Define a minimum amount to be considered a position, to avoid dust
-    # This threshold might need adjustment depending on the asset.
     min_position_amount = 1 
 
     if base_currency_balance > min_position_amount:
-        logger.warning(f"Found {base_currency_balance:.6f} {base_currency} on exchange without a local state. Attempting to sync from trade history.")
-        
+        logger.warning(f"Found {base_currency_balance:.6f} {base_currency} on exchange. Attempting to sync from trade history.")
         last_buy_trade = fetch_last_buy_trade(exchange, symbol)
         
         if last_buy_trade:
-            # Found a historical buy trade, let's use its data
             entry_price = last_buy_trade['price']
             entry_timestamp = last_buy_trade['datetime']
             entry_size = last_buy_trade['amount']
             
-            # A check to see if the balance roughly matches the last trade size
-            if abs(base_currency_balance - entry_size) / entry_size > 0.05: # 5% tolerance
-                 logger.warning(f"The current balance ({base_currency_balance}) does not closely match the last trade size ({entry_size}). Using current balance.")
+            if abs(base_currency_balance - entry_size) / entry_size > 0.05:
+                 logger.warning(f"Balance ({base_currency_balance}) does not match last trade size ({entry_size}). Using current balance.")
                  entry_size = base_currency_balance
 
-
             state['has_position'] = True
-            state['position']['entry_price'] = entry_price
-            state['position']['size'] = entry_size
-            state['position']['timestamp'] = entry_timestamp
-            state['position']['highest_price_after_tp'] = None
+            state['position'] = {
+                'entry_price': entry_price,
+                'size': entry_size,
+                'timestamp': entry_timestamp,
+                'highest_price_after_tp': None
+            }
             save_state(state)
-            
-            msg = (f"✅ <b>State Sync</b>\nFound an existing {base_currency} position.\n"
+            msg = (f"✅ <b>State Sync</b>\nFound existing position.\n"
                    f"Synced from last buy trade at ${entry_price:.4f} on {entry_timestamp}.")
             send_telegram_message(msg)
-            # status_messages.append(msg) # No longer used
             logger.info("Successfully synced position from exchange trade history.")
-
         else:
-            # Fallback to old method if no trade history is found
-            logger.error("Could not find a recent buy trade in history. Falling back to approximation.")
+            logger.error("Could not find a recent buy trade. Falling back to approximation.")
             current_price = get_current_price(exchange, symbol)
             if not current_price:
-                logger.error("Cannot re-create state: failed to fetch current price for fallback.")
+                logger.error("Cannot re-create state: failed to fetch current price.")
                 return
 
             state['has_position'] = True
-            state['position']['entry_price'] = current_price # Approximation!
-            state['position']['size'] = base_currency_balance
-            state['position']['timestamp'] = None
-            state['position']['highest_price_after_tp'] = None
+            state['position'] = {
+                'entry_price': current_price, # Approximation
+                'size': base_currency_balance,
+                'timestamp': None,
+                'highest_price_after_tp': None
+            }
             save_state(state)
-            
-            msg = (f"⚠️ <b>State Sync (Fallback)</b>\nFound an existing position, but no trade history.\n"
+            msg = (f"⚠️ <b>State Sync (Fallback)</b>\nFound position, but no trade history.\n"
                    f"Re-created state with approximate entry price. PnL will be inaccurate.")
             send_telegram_message(msg)
-            # status_messages.append(msg) # No longer used
-            logger.info("Successfully synced position from exchange using fallback.")
+            logger.info("Successfully synced position using fallback.")
 
 def execute_sell_and_record_trade(exchange, state, reason, current_price):
     """
     Executes a market sell order and records the trade details.
-    Returns True if successful, False otherwise.
     """
     logger.info(f"Executing sell for reason: {reason}")
     sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
@@ -127,10 +111,10 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
         logger.error(f"Failed to create sell order for {reason}.")
         return False
 
-    # --- Record Trade History ---
     entry_price = state['position']['entry_price']
     exit_price = sell_order['price']
     pnl_percent = ((exit_price - entry_price) / entry_price) * 100
+    
     trade_record = {
         "symbol": SYMBOL,
         "entry_price": entry_price,
@@ -141,7 +125,6 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
         "timestamp": sell_order['datetime']
     }
     save_trade_history(trade_record)
-    # --- End Record ---
     
     msg = f"✅ <b>{reason.upper()} SELL</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>\nPnL: <code>{pnl_percent:.2f}%</code>"
     send_telegram_message(msg)
@@ -152,35 +135,87 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
 def write_web_status(status_data):
     """Atomically writes the bot status to a JSON file for the web UI."""
     try:
-        # Use a temporary file and atomic rename to prevent read/write race conditions
         with tempfile.NamedTemporaryFile('w', dir='.', delete=False) as tf:
             json.dump(status_data, tf)
             temp_path = tf.name
-        
         os.rename(temp_path, 'web_status.json')
-        logger.info("web_status.json updated successfully.")
+        logger.info("web_status.json updated.")
     except Exception as e:
         logger.error(f"Failed to write web_status.json: {e}")
-    finally:
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
+def handle_in_position(exchange, state, current_price, candles):
+    """
+    Handles the logic when the bot is in a position.
+    """
+    entry_price = state['position']['entry_price']
+    
+    # 1. Check for Trailing Stop Loss update
+    activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
+    if current_price > activation_price:
+        highest_price = state['position'].get('highest_price_after_tp')
+        if not highest_price or current_price > highest_price:
+            state['position']['highest_price_after_tp'] = current_price
+            save_state(state)
+            logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
+
+    # 2. Check for SL/TP/TTP exit
+    reason, _ = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
+    if reason in ["SL", "TP", "TTP"]:
+        if execute_sell_and_record_trade(exchange, state, reason, current_price):
+            return "Sold", reason, True
+
+    # 3. Check for trend reversal SELL signal
+    is_sell_signal, sell_reason = check_sell_signal(candles)
+    if is_sell_signal:
+        if execute_sell_and_record_trade(exchange, state, sell_reason, current_price):
+            return "Sold", sell_reason, True
+    
+    return "Waiting (in position)", sell_reason or "No sell signal.", False
+
+def handle_no_position(exchange, balance, current_price, candles):
+    """
+    Handles the logic when the bot is not in a position.
+    """
+    is_buy_signal, buy_reason = check_buy_signal(candles)
+    if is_buy_signal:
+        quote_currency = SYMBOL.split('/')[1]
+        amount_usdt = balance.get(quote_currency, {}).get('free', 0)
+        if amount_usdt > 1:
+            buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+            if buy_order:
+                new_state = load_state()
+                new_state['has_position'] = True
+                new_state['position'] = {
+                    'entry_price': buy_order['price'],
+                    'size': buy_order['amount'],
+                    'timestamp': buy_order['datetime'],
+                    'highest_price_after_tp': None
+                }
+                save_state(new_state)
+                msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
+                send_telegram_message(msg)
+                logger.info(msg)
+                return "Buy", buy_reason
+    
+    return "Waiting (no position)", buy_reason or "No buy signal."
 
 def run_bot_tick():
     """
     Runs a single check of the trading bot logic.
     """
-    logger.info("Running bot tick...")
+    logger.info("--- Running bot tick ---")
     
     signal = "Initializing"
-    signal_reason = "Bot tick just started."
+    signal_reason = "Bot tick started."
     candles = []
 
     try:
         exchange = get_exchange()
         state = load_state()
 
-        # --- Real-time State Validation ---
+        # --- State Validation ---
         balance = get_account_balance(exchange)
         base_currency = SYMBOL.split('/')[0]
         base_currency_balance = balance.get(base_currency, {}).get('free', 0)
@@ -189,15 +224,12 @@ def run_bot_tick():
         if state.get('has_position'):
             position_size = state['position'].get('size', 0)
             if base_currency_balance < position_size * 0.9:
-                logger.warning(f"State file shows a position of size {position_size}, but balance on exchange is only {base_currency_balance}. Assuming position was closed. Clearing local state.")
-                msg = (f"⚠️ <b>State Mismatch</b>\nLocal state showed an open position, but exchange balance is significantly lower.\n"
-                       f"Assuming position is closed. Clearing local state to resync.")
-                send_telegram_message(msg)
+                logger.warning(f"Position mismatch: state size {position_size}, exchange balance {base_currency_balance}. Clearing state.")
+                send_telegram_message("⚠️ <b>State Mismatch</b>\nPosition closed outside bot. Clearing state.")
                 clear_state()
                 state = load_state()
-
-        elif not state.get('has_position') and base_currency_balance >= min_position_amount:
-            logger.warning("Local state is empty, but found a position on the exchange. Running sync logic...")
+        elif base_currency_balance >= min_position_amount:
+            logger.warning("No local state, but found position on exchange. Syncing...")
             sync_position_with_exchange(exchange, SYMBOL)
             state = load_state()
 
@@ -206,78 +238,22 @@ def run_bot_tick():
         candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=100)
         
         if not current_price or not candles or len(candles) < 50:
-            signal = "Data Error"
-            signal_reason = "Failed to fetch price or enough candle data for analysis."
+            signal, signal_reason = "Data Error", "Failed to fetch price or candle data."
         else:
             # --- Main Logic ---
             if state.get('has_position'):
-                # --- IN A POSITION ---
-                # 1. Check for SL/TP/TTP
-                entry_price = state['position']['entry_price']
-                activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
-                
-                if current_price > activation_price:
-                    highest_price = state['position'].get('highest_price_after_tp')
-                    if not highest_price or current_price > highest_price:
-                        state['position']['highest_price_after_tp'] = current_price
-                        save_state(state)
-                        logger.info(f"Trailing stop price updated. New highest price: {current_price:.4f}")
-
-                reason, price = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
-                
-                if reason in ["SL", "TP", "TTP"]:
-                    if execute_sell_and_record_trade(exchange, state, reason, current_price):
-                        return # End tick
-
-                # 2. Check for trend reversal SELL signal
-                is_sell_signal, sell_reason = check_sell_signal(candles)
-                if is_sell_signal:
-                    signal = "Sell"
-                    signal_reason = sell_reason
-                    if execute_sell_and_record_trade(exchange, state, sell_reason, current_price):
-                        write_web_status({"signal": "Sold", "signal_reason": sell_reason, "live_candles": candles})
-                        return
-                else:
-                    signal = "Waiting (in position)"
-                    signal_reason = sell_reason or "No sell signal detected."
+                signal, signal_reason, trade_executed = handle_in_position(exchange, state, current_price, candles)
+                if trade_executed:
+                    return
             else:
-                # --- NOT IN A POSITION ---
-                # Check for BUY signal
-                is_buy_signal, buy_reason = check_buy_signal(candles)
-                if is_buy_signal:
-                    signal = "Buy"
-                    signal_reason = buy_reason
-                    balance = get_account_balance(exchange)
-                    quote_currency = SYMBOL.split('/')[1]
-                    amount_usdt = balance.get(quote_currency, {}).get('free', 0)
-                    if amount_usdt > 1:
-                        buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
-                        if buy_order:
-                            state = load_state()
-                            state['has_position'] = True
-                            state['position']['entry_price'] = buy_order['price']
-                            state['position']['size'] = buy_order['amount']
-                            state['position']['timestamp'] = buy_order['datetime']
-                            state['position']['highest_price_after_tp'] = None
-                            save_state(state)
-                            
-                            msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
-                            send_telegram_message(msg)
-                            logger.info(msg)
-                else:
-                    signal = "Waiting (no position)"
-                    signal_reason = buy_reason or "No buy signal detected."
+                signal, signal_reason = handle_no_position(exchange, balance, current_price, candles)
 
     except Exception as e:
-        error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"
-        logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
-        send_telegram_message(error_msg)
-        signal = "Error"
-        signal_reason = f"An unexpected error occurred: {e}"
+        logger.error(f"Bot tick error: {e}", exc_info=True)
+        send_telegram_message(f"⚠️ <b>Bot Error</b>\n<code>{e}</code>")
+        signal, signal_reason = "Error", str(e)
     finally:
-        # Always write the final status to the file
         write_web_status({"signal": signal, "signal_reason": signal_reason, "live_candles": candles})
 
-
-# Initialize parameters once on startup
+# Initialize parameters on startup
 initialize_strategy_params()
