@@ -7,7 +7,7 @@ from exchange import get_exchange, fetch_candles, get_current_price, create_mark
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
-from shared_state import shared_lock, status_messages, current_signal, current_signal_reason, strategy_params, live_candles
+from shared_state import strategy_params
 import tempfile
 
 # Load environment variables
@@ -91,7 +91,7 @@ def sync_position_with_exchange(exchange, symbol):
             msg = (f"✅ <b>State Sync</b>\nFound an existing {base_currency} position.\n"
                    f"Synced from last buy trade at ${entry_price:.4f} on {entry_timestamp}.")
             send_telegram_message(msg)
-            status_messages.append(msg)
+            # status_messages.append(msg) # No longer used
             logger.info("Successfully synced position from exchange trade history.")
 
         else:
@@ -112,7 +112,7 @@ def sync_position_with_exchange(exchange, symbol):
             msg = (f"⚠️ <b>State Sync (Fallback)</b>\nFound an existing position, but no trade history.\n"
                    f"Re-created state with approximate entry price. PnL will be inaccurate.")
             send_telegram_message(msg)
-            status_messages.append(msg)
+            # status_messages.append(msg) # No longer used
             logger.info("Successfully synced position from exchange using fallback.")
 
 def execute_sell_and_record_trade(exchange, state, reason, current_price):
@@ -198,7 +198,7 @@ def run_bot_tick():
                 msg = (f"⚠️ <b>State Mismatch</b>\nLocal state showed an open position, but exchange balance is significantly lower.\n"
                        f"Assuming position is closed. Clearing local state to resync.")
                 send_telegram_message(msg)
-                status_messages.append(msg)
+                # status_messages.append(msg) # No longer used
                 
                 # We don't know the exit details, so we can't create a perfect trade record.
                 # The most important thing is to clear the state to allow new trades.
