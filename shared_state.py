@@ -1,5 +1,10 @@
+import threading
+
 # This file holds shared state between the web server and the bot logic
 # to avoid circular imports.
+
+# A lock to ensure thread-safe access to shared data
+shared_lock = threading.Lock()
 
 # Global variable to hold status messages for the web UI
 status_messages = []

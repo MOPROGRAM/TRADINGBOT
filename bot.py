@@ -7,7 +7,7 @@ from exchange import get_exchange, fetch_candles, get_current_price, create_mark
 from signals import check_buy_signal, check_sell_signal, check_sl_tp
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
-from shared_state import status_messages, current_signal, current_signal_reason, strategy_params, live_candles
+from shared_state import shared_lock, status_messages, current_signal, current_signal_reason, strategy_params, live_candles
 
 # Load environment variables
 load_dotenv()
@@ -153,9 +153,13 @@ def run_bot_tick():
     Runs a single check of the trading bot logic.
     """
     logger.info("Running bot tick...")
-    global current_signal, live_candles, current_signal_reason # To modify the global variables
     
     try:
+        # We are not modifying the global variables directly anymore,
+        # but through a thread-safe function.
+        # So `global` keyword is not strictly needed but kept for clarity.
+        global current_signal, live_candles, current_signal_reason
+        
         exchange = get_exchange()
         state = load_state()
 
@@ -194,18 +198,18 @@ def run_bot_tick():
         current_price = get_current_price(exchange, SYMBOL)
         candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=11)
         
-        # Update shared state for the web UI
-        if candles:
-            live_candles[:] = candles
-        else:
-            live_candles[:] = []
+        # --- Thread-Safe Update of Shared State ---
+        with shared_lock:
+            if candles:
+                live_candles[:] = candles
+            else:
+                live_candles[:] = []
 
-
-        if not current_price or not candles or len(candles) < 11:
-            logger.warning("Could not fetch all required data (price or candles). Skipping tick.")
-            current_signal = "Data Error"
-            current_signal_reason = "Failed to fetch price or full candle data."
-            return
+            if not current_price or not candles or len(candles) < 11:
+                logger.warning("Could not fetch all required data (price or candles). Skipping tick.")
+                current_signal = "Data Error"
+                current_signal_reason = "Failed to fetch price or full candle data."
+                return
         # --- End of data fetching ---
 
         # Check for SL/TP first if we have a position
@@ -234,9 +238,15 @@ def run_bot_tick():
         if not state['has_position']:
             # Check for BUY signal
             is_buy_signal, buy_reason = check_buy_signal(candles)
+            with shared_lock:
+                if is_buy_signal:
+                    current_signal = "Buy"
+                    current_signal_reason = buy_reason
+                else:
+                    current_signal = "Waiting (no position)"
+                    current_signal_reason = buy_reason or "No buy signal detected."
+            
             if is_buy_signal:
-                current_signal = "Buy"
-                current_signal_reason = buy_reason
                 balance = get_account_balance(exchange)
                 quote_currency = SYMBOL.split('/')[1]
                 amount_usdt = balance.get(quote_currency, {}).get('free', 0)
@@ -255,27 +265,28 @@ def run_bot_tick():
                         msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
                         send_telegram_message(msg)
                         logger.info(msg)
-            else:
-                current_signal = "Waiting (no position)"
-                current_signal_reason = buy_reason or "No buy signal detected."
         else:
             # Check for SELL signal (trend reversal)
             is_sell_signal, sell_reason = check_sell_signal(candles)
+            with shared_lock:
+                if is_sell_signal:
+                    current_signal = "Sell"
+                    current_signal_reason = sell_reason
+                else:
+                    current_signal = "Waiting (in position)"
+                    current_signal_reason = sell_reason or "No sell signal detected."
+
             if is_sell_signal:
-                current_signal = "Sell"
-                current_signal_reason = sell_reason
                 if execute_sell_and_record_trade(exchange, state, sell_reason, current_price):
                     return # End tick after successful action
-            else:
-                current_signal = "Waiting (in position)"
-                current_signal_reason = sell_reason or "No sell signal detected."
 
     except Exception as e:
         error_msg = f"⚠️ <b>Bot Error</b>\nAn unexpected error occurred: <code>{e}</code>"
         logger.error(f"An unexpected error occurred during bot tick: {e}", exc_info=True)
         send_telegram_message(error_msg)
-        current_signal = "Error"
-        current_signal_reason = f"An unexpected error occurred: {e}"
+        with shared_lock:
+            current_signal = "Error"
+            current_signal_reason = f"An unexpected error occurred: {e}"
 
 # Initialize parameters once on startup
 initialize_strategy_params()
