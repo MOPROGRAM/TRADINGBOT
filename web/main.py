@@ -4,6 +4,7 @@ import sys
 import json
 import time
 import threading
+from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -140,6 +141,27 @@ def get_status():
     # --- End of robust data fetching ---
 
     try:
+        # --- Filter trade history for the last 7 days ---
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        
+        # Ensure timestamps are comparable (handle ISO 8601 strings)
+        def parse_timestamp(ts_str):
+            if not ts_str:
+                return None
+            # Handle Z suffix for UTC
+            if ts_str.endswith('Z'):
+                ts_str = ts_str[:-1] + '+00:00'
+            try:
+                return datetime.fromisoformat(ts_str)
+            except (ValueError, TypeError):
+                return None # Or handle other formats if necessary
+
+        recent_history = [
+            t for t in history 
+            if (ts := parse_timestamp(t.get('timestamp'))) and ts > seven_days_ago
+        ]
+        # --- End of filtering ---
+
         pnl = 0
         if state.get('has_position') and state.get('position', {}).get('entry_price'):
             entry_price = state['position']['entry_price']
@@ -158,15 +180,16 @@ def get_status():
             open_position['reason'] = 'Open'
             processed_history.append(open_position)
 
-        # Add closed trades from history
-        for trade in history:
+        # Add closed trades from the RECENT history
+        for trade in recent_history:
             trade['is_open'] = False
             processed_history.append(trade)
 
         # Sort by timestamp descending to show newest first
         processed_history.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
 
-        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history) # Only sum closed trades
+        # Total PnL is calculated on the FULL history for accuracy
+        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history) 
 
         # --- Update Cache ---
         fresh_data = {
