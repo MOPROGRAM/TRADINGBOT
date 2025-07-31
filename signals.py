@@ -12,6 +12,26 @@ EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 9))
 TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
 
+# ATR-based SL/TP parameters
+ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
+ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
+ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
+ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVATION_MULTIPLIER', 2.0))
+ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
+
+def calculate_atr(candles, period=ATR_PERIOD):
+    """
+    Calculates the Average True Range (ATR) from candle data.
+    """
+    if len(candles) < period:
+        logger.warning(f"Not enough candles ({len(candles)}) to calculate ATR for period {period}.")
+        return None
+
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    atr = ta.atr(df['high'], df['low'], df['close'], length=period)
+    return atr.iloc[-1] if not atr.empty else None
+
+
 
 def check_buy_signal(candles):
     """
@@ -124,40 +144,33 @@ def check_sell_signal(candles):
 
     return False, "No sell condition met"
 
-def check_sl_tp(current_price, position_state, sl_percent, tp_percent, trailing_tp_percent, trailing_tp_activation_percent, trailing_sl_percent):
+def check_sl_tp(current_price, position_state, sl_price, tp_price, trailing_sl_price, trailing_tp_activation_price):
     """
-    Checks for Stop Loss, Take Profit, or Trailing Take Profit conditions.
+    Checks for Stop Loss, Take Profit, or Trailing Take Profit conditions using absolute prices.
     """
     if not position_state["has_position"]:
         return None, None
 
     entry_price = position_state["position"]["entry_price"]
-    # Use 'highest_price_after_tp' to match the key set in bot.py
     highest_price = position_state["position"].get("highest_price_after_tp", entry_price)
 
     # Stop Loss Check
-    sl_price = entry_price * (1 - sl_percent / 100)
-    if current_price <= sl_price:
+    if sl_price is not None and current_price <= sl_price:
         logger.info(f"Stop Loss triggered at {current_price:.4f} (SL price: {sl_price:.4f})")
         return "SL", sl_price
 
     # Trailing Take Profit Logic
-    activation_price = entry_price * (1 + trailing_tp_activation_percent / 100)
-    is_trailing_active = current_price > activation_price
+    is_trailing_active = trailing_tp_activation_price is not None and current_price > trailing_tp_activation_price
 
     if is_trailing_active:
-        # Correctly use the trailing_sl_percent parameter for the calculation
-        trailing_sl_price = highest_price * (1 - trailing_sl_percent / 100)
-        
-        if current_price < trailing_sl_price:
+        if trailing_sl_price is not None and current_price < trailing_sl_price:
             pnl = ((current_price - entry_price) / entry_price) * 100
             logger.info(f"Trailing Take Profit triggered at {current_price:.4f}. "
                         f"Highest price was {highest_price:.4f}. PnL: {pnl:.2f}%")
             return "TTP", current_price
-    
     else:
-        tp_price = entry_price * (1 + tp_percent / 100)
-        if current_price >= tp_price:
+        # Regular Take Profit Check (only if trailing is not active)
+        if tp_price is not None and current_price >= tp_price:
             logger.info(f"Take Profit triggered at {current_price:.4f} (TP price: {tp_price:.4f})")
             return "TP", tp_price
 

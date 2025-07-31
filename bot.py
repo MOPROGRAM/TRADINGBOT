@@ -17,11 +17,13 @@ logger = get_logger(__name__)
 # Constants from .env
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
-SL_PERCENT = float(os.getenv('STOP_LOSS_PERCENT', 0.5))
-TP_PERCENT = float(os.getenv('TAKE_PROFIT_PERCENT', 1.5))
-TRAILING_TP_PERCENT = float(os.getenv('TRAILING_TAKE_PROFIT_PERCENT', 1.0))
-TRAILING_TP_ACTIVATION_PERCENT = float(os.getenv('TRAILING_TAKE_PROFIT_ACTIVATION_PERCENT', 0.5))
-TRAILING_SL_PERCENT = float(os.getenv('TRAILING_STOP_LOSS_PERCENT', 0.5))
+# ATR-based SL/TP parameters
+ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
+ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
+ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
+ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVATION_MULTIPLIER', 2.0))
+ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
+
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 
@@ -34,11 +36,11 @@ def initialize_strategy_params():
     strategy_params["sell_signal_period"] = signals.EXIT_EMA_PERIOD
     strategy_params["trend_ema_period"] = signals.TREND_EMA_PERIOD
     strategy_params["exit_rsi_level"] = signals.EXIT_RSI_LEVEL
-    strategy_params["sl_percent"] = SL_PERCENT
-    strategy_params["tp_percent"] = TP_PERCENT
-    strategy_params["trailing_tp_percent"] = TRAILING_TP_PERCENT
-    strategy_params["trailing_tp_activation_percent"] = TRAILING_TP_ACTIVATION_PERCENT
-    strategy_params["trailing_sl_percent"] = TRAILING_SL_PERCENT
+    strategy_params["atr_period"] = ATR_PERIOD
+    strategy_params["atr_sl_multiplier"] = ATR_SL_MULTIPLIER
+    strategy_params["atr_tp_multiplier"] = ATR_TP_MULTIPLIER
+    strategy_params["atr_trailing_tp_activation_multiplier"] = ATR_TRAILING_TP_ACTIVATION_MULTIPLIER
+    strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
     logger.info(f"Strategy parameters initialized: {strategy_params}")
 
 def sync_position_with_exchange(exchange, symbol):
@@ -75,7 +77,10 @@ def sync_position_with_exchange(exchange, symbol):
                 'entry_price': entry_price,
                 'size': entry_size,
                 'timestamp': entry_timestamp,
-                'highest_price_after_tp': None
+                'highest_price_after_tp': None,
+                'sl_price': None, # Will be calculated on first tick
+                'tp_price': None, # Will be calculated on first tick
+                'trailing_sl_price': None # Will be calculated on first tick
             }
             save_state(state)
             msg = (f"✅ <b>State Sync</b>\nFound existing position.\n"
@@ -94,7 +99,10 @@ def sync_position_with_exchange(exchange, symbol):
                 'entry_price': current_price, # Approximation
                 'size': base_currency_balance,
                 'timestamp': None,
-                'highest_price_after_tp': None
+                'highest_price_after_tp': None,
+                'sl_price': None, # Will be calculated on first tick
+                'tp_price': None, # Will be calculated on first tick
+                'trailing_sl_price': None # Will be calculated on first tick
             }
             save_state(state)
             msg = (f"⚠️ <b>State Sync (Fallback)</b>\nFound position, but no trade history.\n"
@@ -171,17 +179,39 @@ def handle_in_position(exchange, state, current_price, candles):
     """
     entry_price = state['position']['entry_price']
     
-    # 1. Check for Trailing Stop Loss update
-    activation_price = entry_price * (1 + TRAILING_TP_ACTIVATION_PERCENT / 100)
-    if current_price > activation_price:
-        highest_price = state['position'].get('highest_price_after_tp')
-        if not highest_price or current_price > highest_price:
-            state['position']['highest_price_after_tp'] = current_price
+    # Calculate ATR and update SL/TP prices if not set or if ATR changes significantly
+    current_atr = signals.calculate_atr(candles)
+    if current_atr is not None:
+        # Initialize or update SL/TP prices based on ATR
+        if state['position']['sl_price'] is None or state['position']['tp_price'] is None:
+            state['position']['sl_price'] = entry_price - (current_atr * ATR_SL_MULTIPLIER)
+            state['position']['tp_price'] = entry_price + (current_atr * ATR_TP_MULTIPLIER)
+            state['position']['trailing_sl_price'] = entry_price - (current_atr * ATR_SL_MULTIPLIER) # Initial trailing SL
             save_state(state)
-            logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
+            logger.info(f"Initial ATR-based SL/TP set. SL: {state['position']['sl_price']:.4f}, TP: {state['position']['tp_price']:.4f}")
+        
+        # Update trailing SL if price moves favorably
+        activation_price = entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER)
+        if current_price > activation_price:
+            highest_price = state['position'].get('highest_price_after_tp', entry_price)
+            if current_price > highest_price:
+                state['position']['highest_price_after_tp'] = current_price
+                # Trailing SL moves up with the highest price
+                new_trailing_sl = current_price - (current_atr * ATR_TRAILING_SL_MULTIPLIER)
+                # Ensure trailing SL never moves below the initial SL or previous trailing SL
+                state['position']['trailing_sl_price'] = max(state['position']['sl_price'], new_trailing_sl, state['position']['trailing_sl_price'] or 0)
+                save_state(state)
+                logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}, New Trailing SL: {state['position']['trailing_sl_price']:.4f}")
 
-    # 2. Check for SL/TP/TTP exit
-    reason, _ = signals.check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
+    # Check for SL/TP/TTP exit using the calculated absolute prices
+    reason, _ = signals.check_sl_tp(
+        current_price, 
+        state, 
+        sl_price=state['position']['sl_price'], 
+        tp_price=state['position']['tp_price'], 
+        trailing_sl_price=state['position']['trailing_sl_price'],
+        trailing_tp_activation_price=entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER) if current_atr else None
+    )
     if reason in ["SL", "TP", "TTP"]:
         if execute_sell_and_record_trade(exchange, state, reason, current_price):
             return "Sold", reason, True
@@ -211,7 +241,10 @@ def handle_no_position(exchange, balance, current_price, candles):
                     'entry_price': buy_order['price'],
                     'size': buy_order['amount'],
                     'timestamp': buy_order['datetime'],
-                    'highest_price_after_tp': None
+                    'highest_price_after_tp': None,
+                    'sl_price': None, # Will be calculated on first tick after buy
+                    'tp_price': None, # Will be calculated on first tick after buy
+                    'trailing_sl_price': None # Will be calculated on first tick after buy
                 }
                 save_state(new_state)
                 msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
