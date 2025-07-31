@@ -32,6 +32,8 @@ def initialize_strategy_params():
     strategy_params["timeframe"] = TIMEFRAME
     strategy_params["buy_signal_period"] = signals.VOLUME_SMA_PERIOD
     strategy_params["sell_signal_period"] = signals.EXIT_EMA_PERIOD
+    strategy_params["trend_ema_period"] = signals.TREND_EMA_PERIOD
+    strategy_params["exit_rsi_level"] = signals.EXIT_RSI_LEVEL
     strategy_params["sl_percent"] = SL_PERCENT
     strategy_params["tp_percent"] = TP_PERCENT
     strategy_params["trailing_tp_percent"] = TRAILING_TP_PERCENT
