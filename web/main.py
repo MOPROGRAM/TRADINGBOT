@@ -35,9 +35,9 @@ def run_bot_in_background():
     A simple threading background task to run the bot tick periodically.
     This runs in a separate thread to avoid blocking the FastAPI event loop.
     """
-    # Add a small delay to ensure the web server starts up before the bot's first run.
-    # This helps with health checks on platforms like Render.
-    time.sleep(5)
+    # Add a more significant delay to ensure the web server starts up and becomes healthy
+    # before the bot's first run. This is critical for platforms like Render.
+    time.sleep(20)
     
     while True:
         try:
