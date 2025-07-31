@@ -102,10 +102,27 @@ def sync_position_with_exchange(exchange, symbol):
 
 def execute_sell_and_record_trade(exchange, state, reason, current_price):
     """
-    Executes a market sell order and records the trade details.
+    Executes a market sell order using the current available balance and records the trade details.
+    This is more robust against state inconsistencies or precision issues.
     """
     logger.info(f"Executing sell for reason: {reason}")
-    sell_order = create_market_sell_order(exchange, SYMBOL, state['position']['size'])
+    
+    # --- Robust Sell Logic ---
+    # 1. Get the actual available balance from the exchange right before selling.
+    balance = get_account_balance(exchange)
+    base_currency = SYMBOL.split('/')[0]
+    actual_sell_amount = balance.get(base_currency, {}).get('free', 0)
+    
+    if actual_sell_amount < 1: # Ensure there's a sellable amount
+        logger.error(f"Attempted to sell but found no sellable balance for {base_currency}.")
+        # Clear the state as it's inconsistent with the exchange.
+        send_telegram_message(f"⚠️ <b>State Mismatch</b>\nBot had a position for {base_currency}, but balance is zero. Clearing state.")
+        clear_state()
+        return False
+
+    logger.info(f"State size was {state['position']['size']}, actual balance is {actual_sell_amount}. Selling actual balance.")
+    # 2. Create the sell order using the actual balance.
+    sell_order = create_market_sell_order(exchange, SYMBOL, actual_sell_amount)
     
     if not sell_order:
         logger.error(f"Failed to create sell order for {reason}.")
@@ -115,11 +132,12 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     exit_price = sell_order['price']
     pnl_percent = ((exit_price - entry_price) / entry_price) * 100
     
+    # 3. Record the trade with the actual sold amount for accuracy.
     trade_record = {
         "symbol": SYMBOL,
         "entry_price": entry_price,
         "exit_price": exit_price,
-        "size": state['position']['size'],
+        "size": sell_order['amount'], # Use the amount from the successful order
         "pnl_percent": pnl_percent,
         "reason": reason,
         "timestamp": sell_order['datetime']
