@@ -7,8 +7,11 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 # Read signal-specific parameters from environment variables
-VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 10))
-EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 7))
+VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 20))
+EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 9))
+TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
+EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
+
 
 def check_buy_signal(candles):
     """
@@ -34,42 +37,32 @@ def check_buy_signal(candles):
     if atr_percent < 0.1: # If ATR is less than 0.1% of the price, market is too flat
         return False, f"Market too choppy (ATR: {atr_percent:.3f}%)"
 
-    # --- 2. Core Conditions (Old Strategy) ---
-    # Price Action Check
+    # --- 2. New Strategy Conditions ---
+    # Condition 1: Trend Filter (Price must be above a long-term EMA)
+    long_ema = ta.ema(df['close'], length=TREND_EMA_PERIOD)
+    trend_ok = df['close'].iloc[-1] > long_ema.iloc[-1]
+
+    # Condition 2: Price Action (3-candle uptrend)
     c1_close, c2_close, c3_close = df['close'].iloc[-3:]
     c1_low, c2_low, c3_low = df['low'].iloc[-3:]
     price_action_ok = (c1_close < c2_close < c3_close and c1_low < c2_low < c3_low)
 
-    # Volume Check
+    # Condition 3: Volume Confirmation
     volume_sma = df['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
     latest_volume = df['volume'].iloc[-1]
     volume_ok = latest_volume > (volume_sma * 0.8)
 
-    # --- 3. Confirmation Filters (New Strategy) ---
-    # Breakout Check
-    last_10_high = df['high'].iloc[-11:-1].max()
-    breakout_ok = df['close'].iloc[-1] > last_10_high
-
-    # RSI Check
-    rsi = ta.rsi(df['close'], length=14)
-    rsi_ok = rsi.iloc[-1] > 50
-
-    # MACD Check
-    macd = ta.macd(df['close'])
-    macd_hist_ok = macd['MACDh_12_26_9'].iloc[-1] > 0
-
-    # --- 4. Final Decision & Reason ---
-    core_conditions_met = price_action_ok and volume_ok
+    # --- 3. Final Decision & Reason ---
+    all_conditions_met = trend_ok and price_action_ok and volume_ok
     
     # Build the reason string for the UI
     reason_str = (
-        f"Core: [Price {'OK' if price_action_ok else 'FAIL'} | Vol {'OK' if volume_ok else 'FAIL'}] | "
-        f"Confirm: [Breakout {'OK' if breakout_ok else 'NO'} | "
-        f"RSI>50 {'OK' if rsi_ok else 'NO'} | "
-        f"MACD>0 {'OK' if macd_hist_ok else 'NO'}]"
+        f"Trend > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
+        f"Price Action: {'✅' if price_action_ok else '❌'} | "
+        f"Volume: {'✅' if volume_ok else '❌'}"
     )
 
-    if core_conditions_met:
+    if all_conditions_met:
         logger.info(f"BUY SIGNAL: {reason_str}")
         return True, reason_str
     else:
@@ -80,7 +73,7 @@ def check_sell_signal(candles):
     """
     Checks for two sell conditions:
     1. A sharp 3-candle downtrend pattern for trend reversal.
-    2. Price closing below a short-term EMA, indicating loss of momentum.
+    2. Price closing below a short-term EMA, confirmed by RSI, indicating loss of momentum.
     """
     # --- Data Validation ---
     if not all(isinstance(c, list) and len(c) == 6 for c in candles):
@@ -108,22 +101,26 @@ def check_sell_signal(candles):
         logger.info(reason)
         return True, reason
 
-    # --- Condition 2: Price Below Short-Term EMA (Loss of Momentum) ---
-    if len(candles) < EXIT_EMA_PERIOD:
-        logger.warning(f"Not enough candles for exit EMA ({EXIT_EMA_PERIOD}). Skipping this check.")
-        return False, f"Not enough candles for EMA (need >= {EXIT_EMA_PERIOD})"
+    # --- Condition 2: Price Below Short-Term EMA & RSI Confirmation ---
+    if len(candles) >= EXIT_EMA_PERIOD:
+        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        
+        # Calculate short-term EMA
+        short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
+        latest_ema = short_ema.iloc[-1]
+        
+        # Calculate RSI
+        rsi = ta.rsi(df['close'], length=14)
+        latest_rsi = rsi.iloc[-1]
 
-    weights = np.exp(np.linspace(-1., 0., EXIT_EMA_PERIOD))
-    weights /= weights.sum()
-    ema = np.convolve(closes, weights, mode='full')[:len(closes)]
-    ema[:EXIT_EMA_PERIOD] = ema[EXIT_EMA_PERIOD]
-    
-    latest_ema = ema[-1]
-    
-    if closes[-1] < latest_ema:
-        reason = f"SELL SIGNAL: Price ({closes[-1]:.4f}) crossed below {EXIT_EMA_PERIOD}-EMA ({latest_ema:.4f})."
-        logger.info(reason)
-        return True, reason
+        price_below_ema = df['close'].iloc[-1] < latest_ema
+        rsi_confirms = latest_rsi < EXIT_RSI_LEVEL
+
+        if price_below_ema and rsi_confirms:
+            reason = (f"SELL SIGNAL: Price < {EXIT_EMA_PERIOD}-EMA ({df['close'].iloc[-1]:.4f} < {latest_ema:.4f}) "
+                      f"& RSI < {EXIT_RSI_LEVEL} ({latest_rsi:.1f})")
+            logger.info(reason)
+            return True, reason
 
     return False, "No sell condition met"
 
