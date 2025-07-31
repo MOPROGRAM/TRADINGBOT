@@ -174,7 +174,7 @@
 
                 init() {
                     this.fetchStatus();
-                    setInterval(() => this.fetchStatus(), 5000);
+                    setInterval(() => this.fetchStatus(), 30000); // Reduced polling to every 30 seconds
                     this.loadTradingViewChart();
                 },
 

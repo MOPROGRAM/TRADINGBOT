@@ -24,6 +24,12 @@ logger = get_logger(__name__)
 app = FastAPI()
 exchange = get_exchange()
 
+# --- Caching Mechanism ---
+# Cache to store the last API response to reduce load on the exchange
+API_CACHE = None
+LAST_API_CALL_TIME = 0
+CACHE_DURATION_SECONDS = 10 # Cache the response for 10 seconds
+
 def run_bot_in_background():
     """
     A simple threading background task to run the bot tick periodically.
@@ -78,7 +84,15 @@ def get_status_sync():
 
 @app.get("/api/status")
 def get_status():
-    logger.info("API: /api/status called")
+    global API_CACHE, LAST_API_CALL_TIME
+    
+    # Check if a valid cache is available
+    current_time = time.time()
+    if API_CACHE and (current_time - LAST_API_CALL_TIME < CACHE_DURATION_SECONDS):
+        logger.info("API: /api/status called, returning cached response.")
+        return API_CACHE
+
+    logger.info("API: /api/status called, fetching fresh data.")
     
     # --- Read bot status from the dedicated JSON file ---
     bot_status = {}
@@ -150,7 +164,8 @@ def get_status():
 
         total_pnl = sum(trade.get('pnl_percent', 0) for trade in history) # Only sum closed trades
 
-        return {
+        # --- Update Cache ---
+        fresh_data = {
             "symbol": SYMBOL,
             "current_price": current_price,
             "balance": balance,
@@ -166,6 +181,10 @@ def get_status():
             "status_messages": [], # Status messages are now handled by the bot's log/state
             "last_modified": state.get('last_modified')
         }
+        API_CACHE = fresh_data
+        LAST_API_CALL_TIME = time.time()
+        return fresh_data
+        
     except Exception as e:
         logger.error(f"API: Error during final data assembly: {e}", exc_info=True)
         # Return a valid structure even on final error to prevent 502
