@@ -5,33 +5,12 @@ services:
     name: trading-bot-web
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn web.main:app -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 -b 0.0.0.0:$PORT"
+    # Use uvicorn directly, which is simpler and more standard for FastAPI.
+    # It correctly binds to the PORT provided by Render.
+    startCommand: "uvicorn web.main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - fromGroup: trading-bot-env
-
-
-envVarGroups:
-  - name: trading-bot-env
-    envVars:
-      - key: BINANCE_API_KEY
-        value: YOUR_BINANCE_API_KEY
-      - key: BINANCE_API_SECRET
-        value: YOUR_BINANCE_API_SECRET
-      - key: TELEGRAM_BOT_TOKEN
-        value: YOUR_TELEGRAM_BOT_TOKEN
-      - key: TELEGRAM_CHAT_ID
-        value: YOUR_TELEGRAM_CHAT_ID
-      - key: SYMBOL
-        value: XLM/USDT
-      - key: TIMEFRAME
-        value: 5m
-      - key: STOP_LOSS_PERCENT
-        value: 1.5
-      - key: TAKE_PROFIT_PERCENT
-        value: 3.0
-      - key: POLL_SECONDS
-        value: 10
-      - key: DRY_RUN
-        value: True
-      - key: LOG_LEVEL
-        value: INFO
+# It is recommended to manage secrets directly in the Render dashboard
+# rather than defining them in the render.yaml file.
+# This envVarGroups section is removed to encourage best practices.
+# The user should create an environment group named 'trading-bot-env' in Render.
