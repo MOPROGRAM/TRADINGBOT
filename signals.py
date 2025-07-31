@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
@@ -5,7 +6,11 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-def check_buy_signal(candles, volume_sma_period=10):
+# Read signal-specific parameters from environment variables
+VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 10))
+EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 7))
+
+def check_buy_signal(candles):
     """
     Checks for a 3-candle uptrend pattern confirmed by high volume.
     Candles are [timestamp, open, high, low, close, volume].
@@ -36,7 +41,7 @@ def check_buy_signal(candles, volume_sma_period=10):
     price_action_ok = (c1_close < c2_close < c3_close and c1_low < c2_low < c3_low)
 
     # Volume Check
-    volume_sma = df['volume'].rolling(window=volume_sma_period).mean().iloc[-1]
+    volume_sma = df['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
     latest_volume = df['volume'].iloc[-1]
     volume_ok = latest_volume > (volume_sma * 0.8)
 
@@ -71,7 +76,7 @@ def check_buy_signal(candles, volume_sma_period=10):
         logger.info(f"No Buy Signal: {reason_str}")
         return False, reason_str
 
-def check_sell_signal(candles, exit_ema_period=7):
+def check_sell_signal(candles):
     """
     Checks for two sell conditions:
     1. A sharp 3-candle downtrend pattern for trend reversal.
@@ -104,19 +109,19 @@ def check_sell_signal(candles, exit_ema_period=7):
         return True, reason
 
     # --- Condition 2: Price Below Short-Term EMA (Loss of Momentum) ---
-    if len(candles) < exit_ema_period:
-        logger.warning(f"Not enough candles for exit EMA ({exit_ema_period}). Skipping this check.")
-        return False, f"Not enough candles for EMA (need >= {exit_ema_period})"
+    if len(candles) < EXIT_EMA_PERIOD:
+        logger.warning(f"Not enough candles for exit EMA ({EXIT_EMA_PERIOD}). Skipping this check.")
+        return False, f"Not enough candles for EMA (need >= {EXIT_EMA_PERIOD})"
 
-    weights = np.exp(np.linspace(-1., 0., exit_ema_period))
+    weights = np.exp(np.linspace(-1., 0., EXIT_EMA_PERIOD))
     weights /= weights.sum()
     ema = np.convolve(closes, weights, mode='full')[:len(closes)]
-    ema[:exit_ema_period] = ema[exit_ema_period]
+    ema[:EXIT_EMA_PERIOD] = ema[EXIT_EMA_PERIOD]
     
     latest_ema = ema[-1]
     
     if closes[-1] < latest_ema:
-        reason = f"SELL SIGNAL: Price ({closes[-1]:.4f}) crossed below {exit_ema_period}-EMA ({latest_ema:.4f})."
+        reason = f"SELL SIGNAL: Price ({closes[-1]:.4f}) crossed below {EXIT_EMA_PERIOD}-EMA ({latest_ema:.4f})."
         logger.info(reason)
         return True, reason
 

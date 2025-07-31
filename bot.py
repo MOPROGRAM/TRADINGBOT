@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from logger import get_logger
 from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
-from signals import check_buy_signal, check_sell_signal, check_sl_tp
+import signals
 from state import load_state, save_state, clear_state, save_trade_history
 from notifier import send_telegram_message
 from shared_state import strategy_params
@@ -30,8 +30,8 @@ def initialize_strategy_params():
     Populates the shared state with the bot's current strategy parameters.
     """
     strategy_params["timeframe"] = TIMEFRAME
-    strategy_params["buy_signal_period"] = 10 
-    strategy_params["sell_signal_period"] = 7
+    strategy_params["buy_signal_period"] = signals.VOLUME_SMA_PERIOD
+    strategy_params["sell_signal_period"] = signals.EXIT_EMA_PERIOD
     strategy_params["sl_percent"] = SL_PERCENT
     strategy_params["tp_percent"] = TP_PERCENT
     strategy_params["trailing_tp_percent"] = TRAILING_TP_PERCENT
@@ -161,13 +161,13 @@ def handle_in_position(exchange, state, current_price, candles):
             logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}")
 
     # 2. Check for SL/TP/TTP exit
-    reason, _ = check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
+    reason, _ = signals.check_sl_tp(current_price, state, SL_PERCENT, TP_PERCENT, TRAILING_TP_PERCENT, TRAILING_TP_ACTIVATION_PERCENT, TRAILING_SL_PERCENT)
     if reason in ["SL", "TP", "TTP"]:
         if execute_sell_and_record_trade(exchange, state, reason, current_price):
             return "Sold", reason, True
 
     # 3. Check for trend reversal SELL signal
-    is_sell_signal, sell_reason = check_sell_signal(candles)
+    is_sell_signal, sell_reason = signals.check_sell_signal(candles)
     if is_sell_signal:
         if execute_sell_and_record_trade(exchange, state, sell_reason, current_price):
             return "Sold", sell_reason, True
@@ -178,7 +178,7 @@ def handle_no_position(exchange, balance, current_price, candles):
     """
     Handles the logic when the bot is not in a position.
     """
-    is_buy_signal, buy_reason = check_buy_signal(candles)
+    is_buy_signal, buy_reason = signals.check_buy_signal(candles)
     if is_buy_signal:
         quote_currency = SYMBOL.split('/')[1]
         amount_usdt = balance.get(quote_currency, {}).get('free', 0)
