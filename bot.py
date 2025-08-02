@@ -1,6 +1,7 @@
 import os
 import json
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 from logger import get_logger
 from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
@@ -26,6 +27,8 @@ ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
 
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
+COOL_DOWN_PERIOD_MINUTES = int(os.getenv('COOL_DOWN_PERIOD_MINUTES', 30)) # New: Cool-down period after a loss
+MIN_TRADE_USDT = float(os.getenv('MIN_TRADE_USDT', 10.0)) # New: Minimum trade amount in quote currency
 
 def initialize_strategy_params():
     """
@@ -41,6 +44,9 @@ def initialize_strategy_params():
     strategy_params["atr_tp_multiplier"] = ATR_TP_MULTIPLIER
     strategy_params["atr_trailing_tp_activation_multiplier"] = ATR_TRAILING_TP_ACTIVATION_MULTIPLIER
     strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
+    strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL # Add new RSI buy level
+    strategy_params["cool_down_period_minutes"] = COOL_DOWN_PERIOD_MINUTES # Add cool-down period
+    strategy_params["min_trade_usdt"] = MIN_TRADE_USDT # Add minimum trade amount
     logger.info(f"Strategy parameters initialized: {strategy_params}")
 
 def sync_position_with_exchange(exchange, symbol):
@@ -157,6 +163,13 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     msg = f"✅ <b>{reason.upper()} SELL</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>\nPnL: <code>{pnl_percent:.2f}%</code>"
     send_telegram_message(msg)
     logger.info(msg)
+    
+    # If it was a losing trade, record the timestamp for cool-down
+    if pnl_percent < 0:
+        state['last_loss_timestamp'] = datetime.now().isoformat()
+        save_state(state) # Save state immediately after recording loss timestamp
+        logger.info(f"Recorded last loss at {state['last_loss_timestamp']}")
+
     clear_state()
     return True
 
@@ -228,11 +241,28 @@ def handle_no_position(exchange, balance, current_price, candles):
     """
     Handles the logic when the bot is not in a position.
     """
+    state = load_state() # Ensure we have the latest state for cool-down check
+    last_loss_timestamp_str = state.get('last_loss_timestamp')
+
+    if last_loss_timestamp_str:
+        last_loss_time = datetime.fromisoformat(last_loss_timestamp_str)
+        time_since_last_loss = datetime.now() - last_loss_time
+        
+        if time_since_last_loss < timedelta(minutes=COOL_DOWN_PERIOD_MINUTES):
+            remaining_cooldown = timedelta(minutes=COOL_DOWN_PERIOD_MINUTES) - time_since_last_loss
+            logger.info(f"In cool-down period. Remaining: {int(remaining_cooldown.total_seconds() / 60)} minutes.")
+            return "Cool-down", f"Cool-down active. Wait {int(remaining_cooldown.total_seconds() / 60)} mins."
+
     is_buy_signal, buy_reason = signals.check_buy_signal(candles)
     if is_buy_signal:
         quote_currency = SYMBOL.split('/')[1]
         amount_usdt = balance.get(quote_currency, {}).get('free', 0)
-        if amount_usdt > 1:
+        
+        if amount_usdt < MIN_TRADE_USDT:
+            logger.info(f"Not enough {quote_currency} balance ({amount_usdt:.2f}) for minimum trade ({MIN_TRADE_USDT:.2f}).")
+            return "Waiting (no position)", f"Insufficient balance ({amount_usdt:.2f} {quote_currency}) for trade."
+
+        if amount_usdt > 1: # Still keep this check for very small dust amounts
             buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
             if buy_order:
                 new_state = load_state()
@@ -246,6 +276,9 @@ def handle_no_position(exchange, balance, current_price, candles):
                     'tp_price': None, # Will be calculated on first tick after buy
                     'trailing_sl_price': None # Will be calculated on first tick after buy
                 }
+                # Clear last_loss_timestamp after a successful buy
+                if 'last_loss_timestamp' in new_state:
+                    del new_state['last_loss_timestamp']
                 save_state(new_state)
                 msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
                 send_telegram_message(msg)

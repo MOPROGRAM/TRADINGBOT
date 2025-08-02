@@ -11,6 +11,7 @@ VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 20))
 EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 9))
 TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
+BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55)) # New RSI level for buy signal
 
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
@@ -72,14 +73,20 @@ def check_buy_signal(candles):
     latest_volume = df['volume'].iloc[-1]
     volume_ok = latest_volume > (volume_sma * 0.8)
 
+    # Condition 4: RSI Confirmation for Buy
+    rsi = ta.rsi(df['close'], length=14)
+    latest_rsi = rsi.iloc[-1]
+    rsi_ok = latest_rsi > BUY_RSI_LEVEL
+
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and price_action_ok and volume_ok
+    all_conditions_met = trend_ok and price_action_ok and volume_ok and rsi_ok
     
     # Build the reason string for the UI
     reason_str = (
         f"Trend > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
         f"Price Action: {'✅' if price_action_ok else '❌'} | "
-        f"Volume: {'✅' if volume_ok else '❌'}"
+        f"Volume: {'✅' if volume_ok else '❌'} | "
+        f"RSI > {BUY_RSI_LEVEL}: {'✅' if rsi_ok else '❌'}"
     )
 
     if all_conditions_met:
