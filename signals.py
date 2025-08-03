@@ -54,9 +54,11 @@ def calculate_macd(candles, fast_period=MACD_FAST_PERIOD, slow_period=MACD_SLOW_
         return None, None, None
 
     # The columns are typically named MACD_fast_slow_signal, MACDH_fast_slow_signal, MACDS_fast_slow_signal
-    macd_line = macd_data.iloc[-1][f'MACD_{fast_period}_{slow_period}_{signal_period}']
-    macd_histogram = macd_data.iloc[-1][f'MACDH_{fast_period}_{slow_period}_{signal_period}']
-    macd_signal = macd_data.iloc[-1][f'MACDS_{fast_period}_{slow_period}_{signal_period}']
+    # Use .get() for safe access in case a column is missing
+    last_row = macd_data.iloc[-1]
+    macd_line = last_row.get(f'MACD_{fast_period}_{slow_period}_{signal_period}')
+    macd_histogram = last_row.get(f'MACDH_{fast_period}_{slow_period}_{signal_period}')
+    macd_signal = last_row.get(f'MACDS_{fast_period}_{slow_period}_{signal_period}')
 
     return macd_line, macd_signal, macd_histogram
 
@@ -115,9 +117,10 @@ def check_buy_signal(candles_primary, candles_trend):
         if macd_line > macd_signal:
             macd_data_prev = ta.macd(df_primary['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
             if not macd_data_prev.empty:
-                prev_macd_line = macd_data_prev.iloc[-1][f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
-                prev_macd_signal = macd_data_prev.iloc[-1][f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
-                if prev_macd_line <= prev_macd_signal:
+                prev_last_row = macd_data_prev.iloc[-1]
+                prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+                prev_macd_signal = prev_last_row.get(f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+                if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line <= prev_macd_signal:
                     macd_ok = True
             else:
                 macd_ok = True
@@ -200,9 +203,10 @@ def check_sell_signal(candles):
             # To ensure it's a recent crossover, check previous candle's MACD
             macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
             if not macd_data_prev.empty:
-                prev_macd_line = macd_data_prev.iloc[-1][f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
-                prev_macd_signal = macd_data_prev.iloc[-1][f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
-                if prev_macd_line >= prev_macd_signal: # Was above or crossing
+                prev_last_row = macd_data_prev.iloc[-1]
+                prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+                prev_macd_signal = prev_last_row.get(f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+                if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line >= prev_macd_signal: # Was above or crossing
                     reason = (f"SELL SIGNAL: MACD Crossover Down ({macd_line:.4f} < {macd_signal:.4f})")
                     logger.info(reason)
                     return True, reason
