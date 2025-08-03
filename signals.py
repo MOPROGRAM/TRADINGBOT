@@ -20,6 +20,11 @@ ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
 ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVATION_MULTIPLIER', 2.0))
 ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
 
+# MACD Parameters
+MACD_FAST_PERIOD = int(os.getenv('MACD_FAST_PERIOD', 12))
+MACD_SLOW_PERIOD = int(os.getenv('MACD_SLOW_PERIOD', 26))
+MACD_SIGNAL_PERIOD = int(os.getenv('MACD_SIGNAL_PERIOD', 9))
+
 def calculate_atr(candles, period=ATR_PERIOD):
     """
     Calculates the Average True Range (ATR) from candle data.
@@ -32,11 +37,33 @@ def calculate_atr(candles, period=ATR_PERIOD):
     atr = ta.atr(df['high'], df['low'], df['close'], length=period)
     return atr.iloc[-1] if not atr.empty else None
 
+def calculate_macd(candles, fast_period=MACD_FAST_PERIOD, slow_period=MACD_SLOW_PERIOD, signal_period=MACD_SIGNAL_PERIOD):
+    """
+    Calculates MACD, MACD Signal Line, and MACD Histogram.
+    """
+    if len(candles) < max(fast_period, slow_period, signal_period):
+        logger.warning(f"Not enough candles ({len(candles)}) to calculate MACD.")
+        return None, None, None
+
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    
+    # Calculate MACD using pandas_ta
+    macd_data = ta.macd(df['close'], fast=fast_period, slow=slow_period, signal=signal_period)
+    
+    if macd_data.empty:
+        return None, None, None
+
+    # The columns are typically named MACD_fast_slow_signal, MACDH_fast_slow_signal, MACDS_fast_slow_signal
+    macd_line = macd_data.iloc[-1][f'MACD_{fast_period}_{slow_period}_{signal_period}']
+    macd_histogram = macd_data.iloc[-1][f'MACDH_{fast_period}_{slow_period}_{signal_period}']
+    macd_signal = macd_data.iloc[-1][f'MACDS_{fast_period}_{slow_period}_{signal_period}']
+
+    return macd_line, macd_signal, macd_histogram
 
 
 def check_buy_signal(candles):
     """
-    Checks for a 3-candle uptrend pattern confirmed by high volume.
+    Checks for a 3-candle uptrend pattern confirmed by high volume and MACD confirmation.
     Candles are [timestamp, open, high, low, close, volume].
     """
     # --- Data Validation ---
@@ -78,15 +105,34 @@ def check_buy_signal(candles):
     latest_rsi = rsi.iloc[-1]
     rsi_ok = latest_rsi > BUY_RSI_LEVEL
 
+    # Condition 5: MACD Confirmation for Buy
+    macd_line, macd_signal, _ = calculate_macd(candles)
+    macd_ok = False
+    if macd_line is not None and macd_signal is not None:
+        # Check if MACD line is above signal line (bullish crossover)
+        # And also check if it was below or crossing recently to avoid stale signals
+        if macd_line > macd_signal:
+            # To ensure it's a recent crossover, check previous candle's MACD
+            # This requires getting the second to last MACD values
+            macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
+            if not macd_data_prev.empty:
+                prev_macd_line = macd_data_prev.iloc[-1][f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
+                prev_macd_signal = macd_data_prev.iloc[-1][f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
+                if prev_macd_line <= prev_macd_signal: # Was below or crossing
+                    macd_ok = True
+            else: # If not enough data for prev MACD, just check current crossover
+                macd_ok = True
+    
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and price_action_ok and volume_ok and rsi_ok
+    all_conditions_met = trend_ok and price_action_ok and volume_ok and rsi_ok and macd_ok
     
     # Build the reason string for the UI
     reason_str = (
         f"Trend > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
         f"Price Action: {'✅' if price_action_ok else '❌'} | "
         f"Volume: {'✅' if volume_ok else '❌'} | "
-        f"RSI > {BUY_RSI_LEVEL}: {'✅' if rsi_ok else '❌'}"
+        f"RSI > {BUY_RSI_LEVEL}: {'✅' if rsi_ok else '❌'} | "
+        f"MACD Crossover: {'✅' if macd_ok else '❌'}"
     )
 
     if all_conditions_met:
@@ -129,9 +175,8 @@ def check_sell_signal(candles):
         return True, reason
 
     # --- Condition 2: Price Below Short-Term EMA & RSI Confirmation ---
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     if len(candles) >= EXIT_EMA_PERIOD:
-        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        
         # Calculate short-term EMA
         short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
         latest_ema = short_ema.iloc[-1]
@@ -148,6 +193,20 @@ def check_sell_signal(candles):
                       f"& RSI < {EXIT_RSI_LEVEL} ({latest_rsi:.1f})")
             logger.info(reason)
             return True, reason
+
+    # --- Condition 3: MACD Sell Signal (MACD line crosses below Signal line) ---
+    macd_line, macd_signal, _ = calculate_macd(candles)
+    if macd_line is not None and macd_signal is not None:
+        if macd_line < macd_signal:
+            # To ensure it's a recent crossover, check previous candle's MACD
+            macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
+            if not macd_data_prev.empty:
+                prev_macd_line = macd_data_prev.iloc[-1][f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
+                prev_macd_signal = macd_data_prev.iloc[-1][f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
+                if prev_macd_line >= prev_macd_signal: # Was above or crossing
+                    reason = (f"SELL SIGNAL: MACD Crossover Down ({macd_line:.4f} < {macd_signal:.4f})")
+                    logger.info(reason)
+                    return True, reason
 
     return False, "No sell condition met"
 
