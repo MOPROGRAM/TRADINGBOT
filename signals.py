@@ -61,66 +61,65 @@ def calculate_macd(candles, fast_period=MACD_FAST_PERIOD, slow_period=MACD_SLOW_
     return macd_line, macd_signal, macd_histogram
 
 
-def check_buy_signal(candles):
+def check_buy_signal(candles_primary, candles_trend):
     """
-    Checks for a 3-candle uptrend pattern confirmed by high volume and MACD confirmation.
-    Candles are [timestamp, open, high, low, close, volume].
+    Checks for buy signal using Multi-Timeframe Analysis.
+    Primary candles are for entry signals, trend candles are for trend confirmation.
     """
     # --- Data Validation ---
-    if not all(isinstance(c, list) and len(c) == 6 for c in candles):
-        logger.warning("Malformed candle data received. Skipping signal check.")
-        return False, "Malformed candle data"
+    if not all(isinstance(c, list) and len(c) == 6 for c in candles_primary):
+        logger.warning("Malformed primary candle data received. Skipping signal check.")
+        return False, "Malformed primary candle data"
+    if not all(isinstance(c, list) and len(c) == 6 for c in candles_trend):
+        logger.warning("Malformed trend candle data received. Skipping signal check.")
+        return False, "Malformed trend candle data"
     # --- End Validation ---
 
-    if len(candles) < 50: # Need enough data for indicators
+    if len(candles_primary) < 50 or len(candles_trend) < 50:
         return False, "Not enough candle data for full analysis."
 
-    # Convert to DataFrame for pandas_ta
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    # Convert to DataFrames for pandas_ta
+    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
-    # --- 1. Pre-filter: Exclude very low volatility markets ---
-    # Calculate Average True Range (ATR) as a percentage of the closing price
-    atr = ta.atr(df['high'], df['low'], df['close'], length=14)
-    atr_percent = (atr.iloc[-1] / df['close'].iloc[-1]) * 100
-    if atr_percent < 0.1: # If ATR is less than 0.1% of the price, market is too flat
+    # --- 1. Pre-filter: Exclude very low volatility markets on primary timeframe ---
+    atr = ta.atr(df_primary['high'], df_primary['low'], df_primary['close'], length=14)
+    atr_percent = (atr.iloc[-1] / df_primary['close'].iloc[-1]) * 100
+    if atr_percent < 0.1:
         return False, f"Market too choppy (ATR: {atr_percent:.3f}%)"
 
-    # --- 2. New Strategy Conditions ---
-    # Condition 1: Trend Filter (Price must be above a long-term EMA)
-    long_ema = ta.ema(df['close'], length=TREND_EMA_PERIOD)
-    trend_ok = df['close'].iloc[-1] > long_ema.iloc[-1]
+    # --- 2. Strategy Conditions ---
+    # Condition 1: Trend Filter (Price must be above a long-term EMA on the TREND timeframe)
+    long_ema_trend = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
+    trend_ok = df_primary['close'].iloc[-1] > long_ema_trend.iloc[-1]
 
-    # Condition 2: Price Action (3-candle uptrend)
-    c1_close, c2_close, c3_close = df['close'].iloc[-3:]
-    c1_low, c2_low, c3_low = df['low'].iloc[-3:]
+    # Condition 2: Price Action (3-candle uptrend on PRIMARY timeframe)
+    c1_close, c2_close, c3_close = df_primary['close'].iloc[-3:]
+    c1_low, c2_low, c3_low = df_primary['low'].iloc[-3:]
     price_action_ok = (c1_close < c2_close < c3_close and c1_low < c2_low < c3_low)
 
-    # Condition 3: Volume Confirmation
-    volume_sma = df['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
-    latest_volume = df['volume'].iloc[-1]
+    # Condition 3: Volume Confirmation (on PRIMARY timeframe)
+    volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
+    latest_volume = df_primary['volume'].iloc[-1]
     volume_ok = latest_volume > (volume_sma * 0.8)
 
-    # Condition 4: RSI Confirmation for Buy
-    rsi = ta.rsi(df['close'], length=14)
+    # Condition 4: RSI Confirmation for Buy (on PRIMARY timeframe)
+    rsi = ta.rsi(df_primary['close'], length=14)
     latest_rsi = rsi.iloc[-1]
     rsi_ok = latest_rsi > BUY_RSI_LEVEL
 
-    # Condition 5: MACD Confirmation for Buy
-    macd_line, macd_signal, _ = calculate_macd(candles)
+    # Condition 5: MACD Confirmation for Buy (on PRIMARY timeframe)
+    macd_line, macd_signal, _ = calculate_macd(candles_primary)
     macd_ok = False
     if macd_line is not None and macd_signal is not None:
-        # Check if MACD line is above signal line (bullish crossover)
-        # And also check if it was below or crossing recently to avoid stale signals
         if macd_line > macd_signal:
-            # To ensure it's a recent crossover, check previous candle's MACD
-            # This requires getting the second to last MACD values
-            macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
+            macd_data_prev = ta.macd(df_primary['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
             if not macd_data_prev.empty:
                 prev_macd_line = macd_data_prev.iloc[-1][f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
                 prev_macd_signal = macd_data_prev.iloc[-1][f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}']
-                if prev_macd_line <= prev_macd_signal: # Was below or crossing
+                if prev_macd_line <= prev_macd_signal:
                     macd_ok = True
-            else: # If not enough data for prev MACD, just check current crossover
+            else:
                 macd_ok = True
     
     # --- 3. Final Decision & Reason ---
@@ -128,9 +127,9 @@ def check_buy_signal(candles):
     
     # Build the reason string for the UI
     reason_str = (
-        f"Trend > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
-        f"Price Action: {'✅' if price_action_ok else '❌'} | "
-        f"Volume: {'✅' if volume_ok else '❌'} | "
+        f"Trend(1h) > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
+        f"Price Action(5m): {'✅' if price_action_ok else '❌'} | "
+        f"Volume(5m): {'✅' if volume_ok else '❌'} | "
         f"RSI > {BUY_RSI_LEVEL}: {'✅' if rsi_ok else '❌'} | "
         f"MACD Crossover: {'✅' if macd_ok else '❌'}"
     )

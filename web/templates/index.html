@@ -68,7 +68,14 @@
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
                         <span class="text-lg" x-text="signal"></span>
                     </div>
-                    <p class="text-xs text-gray-400 mb-3" x-text="signalReason"></p>
+                    <p class="text-xs text-gray-400 mb-2" x-text="signalReason"></p>
+                    
+                    <!-- New Analysis Details Block -->
+                    <div class="bg-gray-900/50 p-2 rounded-md mb-3">
+                        <h3 class="text-sm font-semibold text-gray-300 mb-1">Signal Analysis Breakdown:</h3>
+                        <pre class="text-xs font-mono text-gray-400 whitespace-pre-wrap" x-text="analysisDetails"></pre>
+                    </div>
+                    
                     <h3 class="text-md font-semibold mb-1">Candles Used for Calculation:</h3>
                     <div class="max-h-48 overflow-y-auto text-xs font-mono">
                         <table class="w-full text-left">
@@ -167,6 +174,7 @@
                 totalPnl: '0.00%',
                 signal: 'Initializing...',
                 signalReason: 'Waiting for data...',
+                analysisDetails: 'Waiting for data...',
                 strategy_params: {},
                 live_candles: [],
                 statusMessages: [],
@@ -191,6 +199,7 @@
                             this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
                             this.signal = data.signal || 'Waiting...';
                             this.signalReason = data.signal_reason || 'N/A';
+                            this.analysisDetails = data.analysis_details || 'N/A';
                             this.strategy_params = data.strategy_params || {};
                             this.live_candles = data.live_candles || [];
                             this.statusMessages = data.status_messages || [];

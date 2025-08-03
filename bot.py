@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 # Constants from .env
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
+TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # New: For multi-timeframe analysis
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
 ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
@@ -35,6 +36,7 @@ def initialize_strategy_params():
     Populates the shared state with the bot's current strategy parameters.
     """
     strategy_params["timeframe"] = TIMEFRAME
+    strategy_params["trend_timeframe"] = TREND_TIMEFRAME # Add new timeframe to web status
     strategy_params["buy_signal_period"] = signals.VOLUME_SMA_PERIOD
     strategy_params["sell_signal_period"] = signals.EXIT_EMA_PERIOD
     strategy_params["trend_ema_period"] = signals.TREND_EMA_PERIOD
@@ -178,9 +180,18 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
 
 def write_web_status(status_data):
     """Atomically writes the bot status to a JSON file for the web UI."""
+    # Ensure all keys have default values
+    data_to_write = {
+        "signal": "N/A",
+        "signal_reason": "Initializing...",
+        "analysis_details": "Waiting for data...",
+        "live_candles": [],
+    }
+    data_to_write.update(status_data)
+
     try:
         with tempfile.NamedTemporaryFile('w', dir='.', delete=False) as tf:
-            json.dump(status_data, tf)
+            json.dump(data_to_write, tf)
             temp_path = tf.name
         os.rename(temp_path, 'web_status.json')
         logger.info("web_status.json updated.")
@@ -240,9 +251,10 @@ def handle_in_position(exchange, state, current_price, candles):
     
     return "Waiting (in position)", sell_reason or "No sell signal.", False
 
-def handle_no_position(exchange, balance, current_price, candles):
+def handle_no_position(exchange, balance, current_price, candles_primary, candles_trend):
     """
-    Handles the logic when the bot is not in a position.
+    Handles the logic when the bot is not in a position, using multi-timeframe data.
+    Returns: signal, signal_reason, analysis_details
     """
     state = load_state() # Ensure we have the latest state for cool-down check
     last_loss_timestamp_str = state.get('last_loss_timestamp')
@@ -253,17 +265,19 @@ def handle_no_position(exchange, balance, current_price, candles):
         
         if time_since_last_loss < timedelta(minutes=COOL_DOWN_PERIOD_MINUTES):
             remaining_cooldown = timedelta(minutes=COOL_DOWN_PERIOD_MINUTES) - time_since_last_loss
+            reason = f"Cool-down active. Wait {int(remaining_cooldown.total_seconds() / 60)} mins."
             logger.info(f"In cool-down period. Remaining: {int(remaining_cooldown.total_seconds() / 60)} minutes.")
-            return "Cool-down", f"Cool-down active. Wait {int(remaining_cooldown.total_seconds() / 60)} mins."
+            return "Cool-down", reason, reason
 
-    is_buy_signal, buy_reason = signals.check_buy_signal(candles)
+    is_buy_signal, analysis_details = signals.check_buy_signal(candles_primary, candles_trend)
     if is_buy_signal:
         quote_currency = SYMBOL.split('/')[1]
         amount_usdt = balance.get(quote_currency, {}).get('free', 0)
         
         if amount_usdt < MIN_TRADE_USDT:
+            reason = f"Insufficient balance ({amount_usdt:.2f} {quote_currency}) for trade."
             logger.info(f"Not enough {quote_currency} balance ({amount_usdt:.2f}) for minimum trade ({MIN_TRADE_USDT:.2f}).")
-            return "Waiting (no position)", f"Insufficient balance ({amount_usdt:.2f} {quote_currency}) for trade."
+            return "Waiting (no position)", reason, analysis_details
 
         if amount_usdt > 1: # Still keep this check for very small dust amounts
             buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
@@ -283,12 +297,12 @@ def handle_no_position(exchange, balance, current_price, candles):
                 if 'last_loss_timestamp' in new_state:
                     del new_state['last_loss_timestamp']
                 save_state(new_state)
-                msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {buy_reason}"
+                msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {analysis_details}"
                 send_telegram_message(msg)
                 logger.info(msg)
-                return "Buy", buy_reason
+                return "Buy", analysis_details, analysis_details
     
-    return "Waiting (no position)", buy_reason or "No buy signal."
+    return "Waiting (no position)", "No buy signal.", analysis_details
 
 def run_bot_tick():
     """
@@ -298,7 +312,8 @@ def run_bot_tick():
     
     signal = "Initializing"
     signal_reason = "Bot tick started."
-    candles = []
+    analysis_details = "Initializing..."
+    candles_primary = []
 
     try:
         exchange = get_exchange()
@@ -324,25 +339,33 @@ def run_bot_tick():
 
         # --- Fetch Data ---
         current_price = get_current_price(exchange, SYMBOL)
-        candles = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=100)
+        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=100)
+        candles_trend = fetch_candles(exchange, SYMBOL, TREND_TIMEFRAME, limit=100)
         
-        if not current_price or not candles or len(candles) < 50:
-            signal, signal_reason = "Data Error", "Failed to fetch price or candle data."
+        if not current_price or not candles_primary or len(candles_primary) < 50 or not candles_trend or len(candles_trend) < 50:
+            signal, signal_reason = "Data Error", "Failed to fetch price or candle data for one or both timeframes."
+            analysis_details = signal_reason
         else:
             # --- Main Logic ---
             if state.get('has_position'):
-                signal, signal_reason, trade_executed = handle_in_position(exchange, state, current_price, candles)
+                # Note: handle_in_position still uses primary candles for SL/TP/Exit signals
+                signal, signal_reason, trade_executed = handle_in_position(exchange, state, current_price, candles_primary)
                 if trade_executed:
                     return
             else:
-                signal, signal_reason = handle_no_position(exchange, balance, current_price, candles)
+                signal, signal_reason, analysis_details = handle_no_position(exchange, balance, current_price, candles_primary, candles_trend)
 
     except Exception as e:
         logger.error(f"Bot tick error: {e}", exc_info=True)
         send_telegram_message(f"⚠️ <b>Bot Error</b>\n<code>{e}</code>")
-        signal, signal_reason = "Error", str(e)
+        signal, signal_reason, analysis_details = "Error", str(e), str(e)
     finally:
-        write_web_status({"signal": signal, "signal_reason": signal_reason, "live_candles": candles})
+        write_web_status({
+            "signal": signal, 
+            "signal_reason": signal_reason, 
+            "analysis_details": analysis_details,
+            "live_candles": candles_primary
+        })
 
 # Initialize parameters on startup
 initialize_strategy_params()
