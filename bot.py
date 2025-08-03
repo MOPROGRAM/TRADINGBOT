@@ -203,6 +203,7 @@ def write_web_status(status_data):
 def handle_in_position(exchange, state, current_price, candles):
     """
     Handles the logic when the bot is in a position.
+    Returns: signal, signal_reason, trade_executed, analysis_details
     """
     entry_price = state['position']['entry_price']
     
@@ -241,15 +242,17 @@ def handle_in_position(exchange, state, current_price, candles):
     )
     if reason in ["SL", "TP", "TTP"]:
         if execute_sell_and_record_trade(exchange, state, reason, current_price):
-            return "Sold", reason, True
+            # For SL/TP, the reason is clear and doesn't need a full breakdown.
+            return "Sold", reason, True, f"Exit Reason: {reason}"
 
     # 3. Check for trend reversal SELL signal
-    is_sell_signal, sell_reason = signals.check_sell_signal(candles)
+    is_sell_signal, analysis_details = signals.check_sell_signal(candles)
     if is_sell_signal:
-        if execute_sell_and_record_trade(exchange, state, sell_reason, current_price):
-            return "Sold", sell_reason, True
+        # The sell reason is the detailed analysis itself
+        if execute_sell_and_record_trade(exchange, state, "Signal", current_price):
+            return "Sold", "Exit Signal", True, analysis_details
     
-    return "Waiting (in position)", sell_reason or "No sell signal.", False
+    return "Waiting (in position)", "No exit signal.", False, analysis_details
 
 def handle_no_position(exchange, balance, current_price, candles_primary, candles_trend):
     """
@@ -349,9 +352,9 @@ def run_bot_tick():
             # --- Main Logic ---
             if state.get('has_position'):
                 # Note: handle_in_position still uses primary candles for SL/TP/Exit signals
-                signal, signal_reason, trade_executed = handle_in_position(exchange, state, current_price, candles_primary)
+                signal, signal_reason, trade_executed, analysis_details = handle_in_position(exchange, state, current_price, candles_primary)
                 if trade_executed:
-                    return
+                    return # Bot tick is done for now
             else:
                 signal, signal_reason, analysis_details = handle_no_position(exchange, balance, current_price, candles_primary, candles_trend)
 

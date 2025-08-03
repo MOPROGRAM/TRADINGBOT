@@ -146,72 +146,58 @@ def check_buy_signal(candles_primary, candles_trend):
 
 def check_sell_signal(candles):
     """
-    Checks for two sell conditions:
-    1. A sharp 3-candle downtrend pattern for trend reversal.
-    2. Price closing below a short-term EMA, confirmed by RSI, indicating loss of momentum.
+    Checks for multiple sell conditions and returns a detailed breakdown.
     """
     # --- Data Validation ---
     if not all(isinstance(c, list) and len(c) == 6 for c in candles):
-        logger.warning("Malformed candle data received. Skipping signal check.")
+        logger.warning("Malformed candle data received for sell check.")
         return False, "Malformed candle data"
-    # --- End Validation ---
+    if len(candles) < 50: # Need enough for all indicators
+        return False, "Not enough candles for full sell analysis."
 
-    if len(candles) < 3:
-        return False, "Not enough candles for sell check (need >= 3)"
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
-    closes = np.array([c[4] for c in candles])
-    lows = np.array([c[3] for c in candles])
+    # --- Calculate all sell indicators ---
 
-    # --- Condition 1: Strong 3-Candle Reversal ---
-    c1_close, c2_close, c3_close = closes[-3:]
-    c1_low, c2_low, c3_low = lows[-3:]
+    # Condition 1: Strong 3-Candle Reversal
+    c1_close, c2_close, c3_close = df['close'].iloc[-3:]
+    c1_low, c2_low, c3_low = df['low'].iloc[-3:]
+    reversal_ok = (c1_close > c2_close > c3_close and c1_low > c2_low > c3_low)
 
-    is_strong_downtrend = (
-        c1_close > c2_close > c3_close and
-        c1_low > c2_low > c3_low
+    # Condition 2: Price Below Short-Term EMA & RSI Confirmation
+    short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
+    rsi = ta.rsi(df['close'], length=14)
+    price_below_ema = df['close'].iloc[-1] < short_ema.iloc[-1]
+    rsi_confirms = rsi.iloc[-1] < EXIT_RSI_LEVEL
+    ema_rsi_ok = price_below_ema and rsi_confirms
+
+    # Condition 3: MACD Sell Signal (MACD line crosses below Signal line)
+    macd_line, macd_signal, _ = calculate_macd(candles)
+    macd_ok = False
+    if macd_line is not None and macd_signal is not None and macd_line < macd_signal:
+        macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
+        if not macd_data_prev.empty:
+            prev_last_row = macd_data_prev.iloc[-1]
+            prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+            prev_macd_signal = prev_last_row.get(f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+            if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line >= prev_macd_signal:
+                macd_ok = True
+
+    # --- Final Decision & Reason ---
+    any_condition_met = reversal_ok or ema_rsi_ok or macd_ok
+    
+    reason_str = (
+        f"Reversal Pattern: {'✅' if reversal_ok else '❌'} | "
+        f"Price < EMA({EXIT_EMA_PERIOD}) & RSI < {EXIT_RSI_LEVEL}: {'✅' if ema_rsi_ok else '❌'} | "
+        f"MACD Crossover Down: {'✅' if macd_ok else '❌'}"
     )
 
-    if is_strong_downtrend:
-        reason = f"SELL SIGNAL: Strong 3-candle reversal (Closes: {c1_close:.4f} > {c2_close:.4f} > {c3_close:.4f})"
-        logger.info(reason)
-        return True, reason
-
-    # --- Condition 2: Price Below Short-Term EMA & RSI Confirmation ---
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    if len(candles) >= EXIT_EMA_PERIOD:
-        # Calculate short-term EMA
-        short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
-        latest_ema = short_ema.iloc[-1]
-        
-        # Calculate RSI
-        rsi = ta.rsi(df['close'], length=14)
-        latest_rsi = rsi.iloc[-1]
-
-        price_below_ema = df['close'].iloc[-1] < latest_ema
-        rsi_confirms = latest_rsi < EXIT_RSI_LEVEL
-
-        if price_below_ema and rsi_confirms:
-            reason = (f"SELL SIGNAL: Price < {EXIT_EMA_PERIOD}-EMA ({df['close'].iloc[-1]:.4f} < {latest_ema:.4f}) "
-                      f"& RSI < {EXIT_RSI_LEVEL} ({latest_rsi:.1f})")
-            logger.info(reason)
-            return True, reason
-
-    # --- Condition 3: MACD Sell Signal (MACD line crosses below Signal line) ---
-    macd_line, macd_signal, _ = calculate_macd(candles)
-    if macd_line is not None and macd_signal is not None:
-        if macd_line < macd_signal:
-            # To ensure it's a recent crossover, check previous candle's MACD
-            macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
-            if not macd_data_prev.empty:
-                prev_last_row = macd_data_prev.iloc[-1]
-                prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-                prev_macd_signal = prev_last_row.get(f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-                if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line >= prev_macd_signal: # Was above or crossing
-                    reason = (f"SELL SIGNAL: MACD Crossover Down ({macd_line:.4f} < {macd_signal:.4f})")
-                    logger.info(reason)
-                    return True, reason
-
-    return False, "No sell condition met"
+    if any_condition_met:
+        logger.info(f"SELL SIGNAL: {reason_str}")
+        return True, reason_str
+    else:
+        logger.info(f"No Sell Signal: {reason_str}")
+        return False, reason_str
 
 def check_sl_tp(current_price, position_state, sl_price, tp_price, trailing_sl_price, trailing_tp_activation_price):
     """
