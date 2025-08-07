@@ -71,11 +71,15 @@ def check_buy_signal(candles_primary, candles_trend):
     Primary candles are for entry signals, trend candles are for trend confirmation.
     """
     # --- Data Validation ---
-    if not all(isinstance(c, list) and len(c) == 6 for c in candles_primary):
-        logger.warning("Malformed primary candle data received. Skipping signal check.")
+    def is_valid_candle(c):
+        # Checks if candle is a list of 6, and OHLCV are numeric
+        return isinstance(c, list) and len(c) == 6 and all(isinstance(val, (int, float)) for val in c[1:])
+
+    if not all(is_valid_candle(c) for c in candles_primary):
+        logger.warning("Malformed or incomplete primary candle data received. Skipping signal check.")
         return False, "Malformed primary candle data"
-    if not all(isinstance(c, list) and len(c) == 6 for c in candles_trend):
-        logger.warning("Malformed trend candle data received. Skipping signal check.")
+    if not all(is_valid_candle(c) for c in candles_trend):
+        logger.warning("Malformed or incomplete trend candle data received. Skipping signal check.")
         return False, "Malformed trend candle data"
     # --- End Validation ---
 
@@ -88,6 +92,10 @@ def check_buy_signal(candles_primary, candles_trend):
     
     # --- 1. Pre-filter: Exclude very low volatility markets on primary timeframe ---
     atr = ta.atr(df_primary['high'], df_primary['low'], df_primary['close'], length=14)
+    # Validate ATR calculation before use
+    if atr is None or atr.empty or pd.isna(atr.iloc[-1]):
+        return False, "Could not calculate ATR for pre-filter."
+    
     atr_percent = (atr.iloc[-1] / df_primary['close'].iloc[-1]) * 100
     if atr_percent < 0.1:
         return False, f"Market too choppy (ATR: {atr_percent:.3f}%)"
@@ -152,8 +160,12 @@ def check_sell_signal(candles):
     Checks for multiple sell conditions and returns a detailed breakdown.
     """
     # --- Data Validation ---
-    if not all(isinstance(c, list) and len(c) == 6 for c in candles):
-        logger.warning("Malformed candle data received for sell check.")
+    def is_valid_candle(c):
+        # Checks if candle is a list of 6, and OHLCV are numeric
+        return isinstance(c, list) and len(c) == 6 and all(isinstance(val, (int, float)) for val in c[1:])
+
+    if not all(is_valid_candle(c) for c in candles):
+        logger.warning("Malformed or incomplete candle data received for sell check.")
         return False, "Malformed candle data"
     if len(candles) < 50: # Need enough for all indicators
         return False, "Not enough candles for full sell analysis."
