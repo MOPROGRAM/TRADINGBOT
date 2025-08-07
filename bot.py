@@ -208,10 +208,17 @@ def handle_in_position(exchange, state, current_price, candles):
     # --- Critical Validation ---
     if current_price is None:
         logger.error("handle_in_position was called with a None current_price.")
-        # Return a clear error state that can be displayed in the UI
         return "Error", "Price is None", False, "Critical error: Current price data is missing."
 
-    entry_price = state['position']['entry_price']
+    entry_price = state['position'].get('entry_price')
+
+    # --- Final, definitive check for state corruption ---
+    if entry_price is None or not isinstance(entry_price, (int, float)):
+        logger.critical(f"Position state is corrupt: entry_price is '{entry_price}'. Clearing state.")
+        send_telegram_message("CRITICAL ERROR: Position state corrupt (entry_price is missing or invalid). State has been cleared.")
+        clear_state()
+        # Return True for trade_executed to halt further processing in this tick
+        return "Error", "Corrupt State", True, "Critical error: entry_price was missing. State cleared."
     
     # Calculate ATR and update SL/TP prices if not set or if ATR changes significantly
     current_atr = signals.calculate_atr(candles)
