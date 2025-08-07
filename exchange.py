@@ -23,12 +23,38 @@ def get_exchange():
         logger.info("Exchange is in SANDBOX mode.")
     return exchange
 
-def fetch_candles(exchange, symbol, timeframe, limit=3):
+def fetch_candles(exchange, symbol, timeframe, limit=100):
+    """
+    Fetches and validates OHLCV candle data from the exchange.
+    """
     try:
-        candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        # CCXT returns: [timestamp, open, high, low, close, volume]
-        # Ensure all 6 components are returned for signal analysis.
-        return candles
+        raw_candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        
+        if not raw_candles:
+            logger.warning(f"No candles returned for {symbol} on {timeframe}.")
+            return []
+
+        # --- Data Validation and Cleaning ---
+        clean_candles = []
+        for c in raw_candles:
+            # 1. Check for completeness
+            if c is None or len(c) != 6:
+                logger.warning(f"Skipping incomplete candle: {c}")
+                continue
+            
+            # 2. Check for None values in OHLCV
+            if any(v is None for v in c[1:]):
+                logger.warning(f"Skipping candle with None values: {c}")
+                continue
+                
+            # 3. All checks passed, add to clean list
+            clean_candles.append(c)
+            
+        if len(raw_candles) != len(clean_candles):
+            logger.info(f"Cleaned {len(raw_candles) - len(clean_candles)} invalid candles.")
+
+        return clean_candles
+        
     except ccxt.BaseError as e:
         logger.error(f"Error fetching candles for {symbol}: {e}")
         return []
