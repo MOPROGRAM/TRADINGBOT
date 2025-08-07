@@ -86,9 +86,14 @@ def check_buy_signal(candles_primary, candles_trend):
     if len(candles_primary) < 50 or len(candles_trend) < 50:
         return False, "Not enough candle data for full analysis."
 
-    # Convert to DataFrames for pandas_ta and clean data
-    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']).dropna()
-    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']).dropna()
+    # --- Robust Data Cleaning ---
+    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    
+    for df in [df_primary, df_trend]:
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df.dropna(inplace=True)
 
     # Re-check length after cleaning
     if len(df_primary) < 50 or len(df_trend) < 50:
@@ -109,7 +114,9 @@ def check_buy_signal(candles_primary, candles_trend):
     long_ema_trend = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
     volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
     rsi = ta.rsi(df_primary['close'], length=14)
-    macd_line, macd_signal, _ = calculate_macd(candles_primary)
+    # Use the cleaned data for MACD calculation
+    cleaned_candles_primary = df_primary.values.tolist()
+    macd_line, macd_signal, _ = calculate_macd(cleaned_candles_primary)
     
     # --- Validate Indicators ---
     if long_ema_trend is None or long_ema_trend.empty or pd.isna(long_ema_trend.iloc[-1]):
@@ -174,8 +181,11 @@ def check_sell_signal(candles):
     if len(candles) < 50: # Need enough for all indicators
         return False, "Not enough candles for full sell analysis."
 
-    # Create and clean the DataFrame
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']).dropna()
+    # --- Robust Data Cleaning ---
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    for col in ['open', 'high', 'low', 'close', 'volume']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df.dropna(inplace=True)
 
     # Re-check length after cleaning
     if len(df) < 50:
@@ -184,7 +194,9 @@ def check_sell_signal(candles):
     # --- Calculate all sell indicators ---
     short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
     rsi = ta.rsi(df['close'], length=14)
-    macd_line, macd_signal, _ = calculate_macd(candles)
+    # Use the cleaned data for MACD calculation
+    cleaned_candles = df.values.tolist()
+    macd_line, macd_signal, _ = calculate_macd(cleaned_candles)
 
     # --- Validate Indicators ---
     if short_ema is None or short_ema.empty or pd.isna(short_ema.iloc[-1]):
