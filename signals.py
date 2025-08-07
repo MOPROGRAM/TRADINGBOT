@@ -86,9 +86,13 @@ def check_buy_signal(candles_primary, candles_trend):
     if len(candles_primary) < 50 or len(candles_trend) < 50:
         return False, "Not enough candle data for full analysis."
 
-    # Convert to DataFrames for pandas_ta
-    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    # Convert to DataFrames for pandas_ta and clean data
+    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']).dropna()
+    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']).dropna()
+
+    # Re-check length after cleaning
+    if len(df_primary) < 50 or len(df_trend) < 50:
+        return False, "Not enough valid candle data after cleaning."
     
     # --- 1. Pre-filter: Exclude very low volatility markets on primary timeframe ---
     atr = ta.atr(df_primary['high'], df_primary['low'], df_primary['close'], length=14)
@@ -170,7 +174,12 @@ def check_sell_signal(candles):
     if len(candles) < 50: # Need enough for all indicators
         return False, "Not enough candles for full sell analysis."
 
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    # Create and clean the DataFrame
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']).dropna()
+
+    # Re-check length after cleaning
+    if len(df) < 50:
+        return False, "Not enough valid candles after cleaning data."
 
     # --- Calculate all sell indicators ---
     short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
