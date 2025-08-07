@@ -163,10 +163,14 @@ def get_status():
         # --- End of filtering ---
 
         pnl = 0
-        if state.get('has_position') and state.get('position', {}).get('entry_price'):
-            entry_price = state['position']['entry_price']
-            if entry_price and current_price:
-                pnl = ((current_price - entry_price) / entry_price) * 100
+        entry_price = state.get('position', {}).get('entry_price')
+        # --- Final PnL Validation ---
+        # Ensure both entry_price and current_price are valid numbers before calculation
+        if state.get('has_position') and isinstance(entry_price, (int, float)) and isinstance(current_price, (int, float)):
+            pnl = ((current_price - entry_price) / entry_price) * 100
+        elif state.get('has_position'):
+            # If we have a position but can't calculate PnL, log it.
+            logger.warning(f"Could not calculate PnL. entry_price: {entry_price}, current_price: {current_price}")
         
         # Process trade history
         processed_history = []
