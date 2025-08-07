@@ -234,7 +234,12 @@ def handle_in_position(exchange, state, current_price, candles):
         # Update trailing SL if price moves favorably
         activation_price = entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER)
         if current_price > activation_price:
-            highest_price = state['position'].get('highest_price_after_tp', entry_price)
+            # --- Definitive Fix ---
+            # Initialize highest_price to entry_price if it's None to prevent TypeError
+            highest_price = state['position'].get('highest_price_after_tp')
+            if highest_price is None:
+                highest_price = entry_price
+
             if current_price > highest_price:
                 state['position']['highest_price_after_tp'] = current_price
                 # Trailing SL moves up with the highest price
