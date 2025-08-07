@@ -205,6 +205,12 @@ def handle_in_position(exchange, state, current_price, candles):
     Handles the logic when the bot is in a position.
     Returns: signal, signal_reason, trade_executed, analysis_details
     """
+    # --- Critical Validation ---
+    if current_price is None:
+        logger.error("handle_in_position was called with a None current_price.")
+        # Return a clear error state that can be displayed in the UI
+        return "Error", "Price is None", False, "Critical error: Current price data is missing."
+
     entry_price = state['position']['entry_price']
     
     # Calculate ATR and update SL/TP prices if not set or if ATR changes significantly
