@@ -59,8 +59,8 @@ def calculate_macd(candles, fast_period=MACD_FAST_PERIOD, slow_period=MACD_SLOW_
     # Use .get() for safe access in case a column is missing
     last_row = macd_data.iloc[-1]
     macd_line = last_row.get(f'MACD_{fast_period}_{slow_period}_{signal_period}')
-    macd_histogram = last_row.get(f'MACDH_{fast_period}_{slow_period}_{signal_period}')
-    macd_signal = last_row.get(f'MACDS_{fast_period}_{slow_period}_{signal_period}')
+    macd_histogram = last_row.get(f'MACDh_{fast_period}_{slow_period}_{signal_period}')
+    macd_signal = last_row.get(f'MACDs_{fast_period}_{slow_period}_{signal_period}')
 
     return macd_line, macd_signal, macd_histogram
 
@@ -93,25 +93,35 @@ def check_buy_signal(candles_primary, candles_trend):
         return False, f"Market too choppy (ATR: {atr_percent:.3f}%)"
 
     # --- 2. Strategy Conditions ---
-    # Condition 1: Trend Filter (Price must be above a long-term EMA on the TREND timeframe)
+    # Calculate all indicators first
     long_ema_trend = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
+    volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
+    rsi = ta.rsi(df_primary['close'], length=14)
+    macd_line, macd_signal, _ = calculate_macd(candles_primary)
+    
+    # --- Validate Indicators ---
+    if long_ema_trend is None or long_ema_trend.empty or pd.isna(long_ema_trend.iloc[-1]):
+        return False, "Could not calculate trend EMA."
+    if pd.isna(volume_sma):
+        return False, "Could not calculate volume SMA."
+    if rsi is None or rsi.empty or pd.isna(rsi.iloc[-1]):
+        return False, "Could not calculate RSI."
+    
+    # --- Apply Strategy Conditions ---
+    # Condition 1: Trend Filter
     trend_ok = df_primary['close'].iloc[-1] > long_ema_trend.iloc[-1]
 
-    # Condition 2: Volume Confirmation (on PRIMARY timeframe)
-    volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
+    # Condition 2: Volume Confirmation
     latest_volume = df_primary['volume'].iloc[-1]
     volume_ok = latest_volume > (volume_sma * 0.8)
 
-    # Condition 3: RSI Confirmation for Buy (on PRIMARY timeframe)
-    rsi = ta.rsi(df_primary['close'], length=14)
+    # Condition 3: RSI Confirmation
     latest_rsi = rsi.iloc[-1]
     rsi_ok = BUY_RSI_LEVEL < latest_rsi < BUY_RSI_UPPER_LEVEL
 
-    # Condition 4: MACD Confirmation for Buy (on PRIMARY timeframe)
-    macd_line, macd_signal, _ = calculate_macd(candles_primary)
+    # Condition 4: MACD Confirmation
     macd_ok = False
     if macd_line is not None and macd_signal is not None:
-        # Check if MACD line is above the signal line (positive momentum)
         if macd_line > macd_signal:
             macd_ok = True
 
@@ -151,28 +161,36 @@ def check_sell_signal(candles):
     df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
     # --- Calculate all sell indicators ---
+    short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
+    rsi = ta.rsi(df['close'], length=14)
+    macd_line, macd_signal, _ = calculate_macd(candles)
 
+    # --- Validate Indicators ---
+    if short_ema is None or short_ema.empty or pd.isna(short_ema.iloc[-1]):
+        return False, "Could not calculate exit EMA."
+    if rsi is None or rsi.empty or pd.isna(rsi.iloc[-1]):
+        return False, "Could not calculate RSI for sell."
+
+    # --- Apply Strategy Conditions ---
     # Condition 1: Strong 3-Candle Reversal
     c1_close, c2_close, c3_close = df['close'].iloc[-3:]
     c1_low, c2_low, c3_low = df['low'].iloc[-3:]
     reversal_ok = (c1_close > c2_close > c3_close and c1_low > c2_low > c3_low)
 
     # Condition 2: Price Below Short-Term EMA & RSI Confirmation
-    short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
-    rsi = ta.rsi(df['close'], length=14)
     price_below_ema = df['close'].iloc[-1] < short_ema.iloc[-1]
     rsi_confirms = rsi.iloc[-1] < EXIT_RSI_LEVEL
     ema_rsi_ok = price_below_ema and rsi_confirms
 
     # Condition 3: MACD Sell Signal (MACD line crosses below Signal line)
-    macd_line, macd_signal, _ = calculate_macd(candles)
     macd_ok = False
     if macd_line is not None and macd_signal is not None and macd_line < macd_signal:
+        # Check for a crossover, not just that it's below
         macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
         if not macd_data_prev.empty:
             prev_last_row = macd_data_prev.iloc[-1]
             prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-            prev_macd_signal = prev_last_row.get(f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
+            prev_macd_signal = prev_last_row.get(f'MACDs_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
             if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line >= prev_macd_signal:
                 macd_ok = True
 
