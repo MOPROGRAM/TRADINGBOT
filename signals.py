@@ -36,8 +36,22 @@ def calculate_atr(candles, period=ATR_PERIOD):
         return None
 
     df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    # --- Robust Data Cleaning ---
+    for col in ['high', 'low', 'close']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df.dropna(subset=['high', 'low', 'close'], inplace=True)
+    
+    if len(df) < period:
+        logger.warning(f"Not enough valid candles ({len(df)}) to calculate ATR after cleaning.")
+        return None
+
     atr = ta.atr(df['high'], df['low'], df['close'], length=period)
-    return atr.iloc[-1] if not atr.empty else None
+    
+    # Final validation of the result
+    if atr is None or atr.empty or pd.isna(atr.iloc[-1]):
+        return None
+    
+    return atr.iloc[-1]
 
 def calculate_macd(candles, fast_period=MACD_FAST_PERIOD, slow_period=MACD_SLOW_PERIOD, signal_period=MACD_SIGNAL_PERIOD):
     """
@@ -145,7 +159,7 @@ def check_buy_signal(candles_primary, candles_trend):
             macd_ok = True
 
     # Condition 5: AI Confirmation
-    ai_ok = get_ai_signal(candles_primary)
+    ai_ok = get_ai_signal(cleaned_candles_primary)
     
     # --- 3. Final Decision & Reason ---
     all_conditions_met = trend_ok and volume_ok and rsi_ok and macd_ok and ai_ok
@@ -208,6 +222,15 @@ def check_sell_signal(candles):
     # Condition 1: Strong 3-Candle Reversal
     c1_close, c2_close, c3_close = df['close'].iloc[-3:]
     c1_low, c2_low, c3_low = df['low'].iloc[-3:]
+    
+    # --- Final Validation Step ---
+    # Explicitly check types before comparison to prevent the persistent TypeError.
+    for val in [c1_close, c2_close, c3_close, c1_low, c2_low, c3_low]:
+        if not isinstance(val, (int, float)):
+            err_msg = f"FATAL: Invalid, non-numeric data type '{type(val).__name__}' found in reversal check."
+            logger.error(err_msg)
+            return False, err_msg
+            
     reversal_ok = (c1_close > c2_close > c3_close and c1_low > c2_low > c3_low)
 
     # Condition 2: Price Below Short-Term EMA & RSI Confirmation
