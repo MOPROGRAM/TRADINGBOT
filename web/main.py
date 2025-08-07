@@ -189,7 +189,16 @@ def get_status():
         processed_history.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
 
         # Total PnL is calculated on the FULL history for accuracy
-        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history) 
+        total_pnl = sum(trade.get('pnl_percent', 0) for trade in history)
+
+        # --- Get AI Model Info ---
+        ai_model_last_trained = "Not available"
+        try:
+            with open('model_info.json', 'r') as f:
+                model_info = json.load(f)
+                ai_model_last_trained = model_info.get('last_trained_date', 'N/A')
+        except (FileNotFoundError, json.JSONDecodeError):
+            logger.warning("model_info.json not found or invalid.")
 
         # --- Update Cache ---
         fresh_data = {
@@ -207,7 +216,8 @@ def get_status():
             "strategy_params": strategy_params,
             "live_candles": bot_status.get("live_candles", []),
             "status_messages": [], # Status messages are now handled by the bot's log/state
-            "last_modified": state.get('last_modified')
+            "last_modified": state.get('last_modified'),
+            "ai_model_last_trained": ai_model_last_trained
         }
         API_CACHE = fresh_data
         LAST_API_CALL_TIME = time.time()

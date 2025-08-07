@@ -24,6 +24,9 @@
                         <span class="text-2xl" x-html="statusIcon"></span>
                         <span class="text-lg" x-text="statusText"></span>
                     </div>
+                    <div class="text-xs text-gray-400 mt-2">
+                        AI Model Trained: <span x-text="ai_model_last_trained" class="font-mono"></span>
+                    </div>
                 </div>
 
                 <!-- Status Messages Card -->
@@ -179,6 +182,7 @@
                 live_candles: [],
                 statusMessages: [],
                 lastModified: null,
+                ai_model_last_trained: 'N/A',
 
                 init() {
                     this.fetchStatus();
@@ -203,6 +207,7 @@
                             this.strategy_params = data.strategy_params || {};
                             this.live_candles = data.live_candles || [];
                             this.statusMessages = data.status_messages || [];
+                            this.ai_model_last_trained = data.ai_model_last_trained || 'N/A';
 
                             // Check if the state has been significantly changed by the bot
                             if (this.lastModified && this.lastModified !== data.last_modified) {

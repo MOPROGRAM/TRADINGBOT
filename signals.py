@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import pandas_ta as ta
 from logger import get_logger
+from ai_signal_generator import get_ai_signal
 
 logger = get_logger(__name__)
 
@@ -11,7 +12,8 @@ VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 20))
 EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 9))
 TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
-BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55)) # New RSI level for buy signal
+BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55))
+BUY_RSI_UPPER_LEVEL = int(os.getenv('BUY_RSI_UPPER_LEVEL', 70)) # New RSI upper level for buy signal
 
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
@@ -95,46 +97,37 @@ def check_buy_signal(candles_primary, candles_trend):
     long_ema_trend = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
     trend_ok = df_primary['close'].iloc[-1] > long_ema_trend.iloc[-1]
 
-    # Condition 2: Price Action (3-candle uptrend on PRIMARY timeframe)
-    c1_close, c2_close, c3_close = df_primary['close'].iloc[-3:]
-    c1_low, c2_low, c3_low = df_primary['low'].iloc[-3:]
-    price_action_ok = (c1_close < c2_close < c3_close and c1_low < c2_low < c3_low)
-
-    # Condition 3: Volume Confirmation (on PRIMARY timeframe)
+    # Condition 2: Volume Confirmation (on PRIMARY timeframe)
     volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
     latest_volume = df_primary['volume'].iloc[-1]
     volume_ok = latest_volume > (volume_sma * 0.8)
 
-    # Condition 4: RSI Confirmation for Buy (on PRIMARY timeframe)
+    # Condition 3: RSI Confirmation for Buy (on PRIMARY timeframe)
     rsi = ta.rsi(df_primary['close'], length=14)
     latest_rsi = rsi.iloc[-1]
-    rsi_ok = latest_rsi > BUY_RSI_LEVEL
+    rsi_ok = BUY_RSI_LEVEL < latest_rsi < BUY_RSI_UPPER_LEVEL
 
-    # Condition 5: MACD Confirmation for Buy (on PRIMARY timeframe)
+    # Condition 4: MACD Confirmation for Buy (on PRIMARY timeframe)
     macd_line, macd_signal, _ = calculate_macd(candles_primary)
     macd_ok = False
     if macd_line is not None and macd_signal is not None:
+        # Check if MACD line is above the signal line (positive momentum)
         if macd_line > macd_signal:
-            macd_data_prev = ta.macd(df_primary['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
-            if not macd_data_prev.empty:
-                prev_last_row = macd_data_prev.iloc[-1]
-                prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-                prev_macd_signal = prev_last_row.get(f'MACDS_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-                if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line <= prev_macd_signal:
-                    macd_ok = True
-            else:
-                macd_ok = True
+            macd_ok = True
+
+    # Condition 5: AI Confirmation
+    ai_ok = get_ai_signal(candles_primary)
     
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and price_action_ok and volume_ok and rsi_ok and macd_ok
+    all_conditions_met = trend_ok and volume_ok and rsi_ok and macd_ok and ai_ok
     
     # Build the reason string for the UI
     reason_str = (
         f"Trend(1h) > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
-        f"Price Action(5m): {'✅' if price_action_ok else '❌'} | "
         f"Volume(5m): {'✅' if volume_ok else '❌'} | "
-        f"RSI > {BUY_RSI_LEVEL}: {'✅' if rsi_ok else '❌'} | "
-        f"MACD Crossover: {'✅' if macd_ok else '❌'}"
+        f"{BUY_RSI_LEVEL} < RSI < {BUY_RSI_UPPER_LEVEL}: {'✅' if rsi_ok else '❌'} | "
+        f"MACD > Signal: {'✅' if macd_ok else '❌'} | "
+        f"AI Signal: {'✅' if ai_ok else '❌'}"
     )
 
     if all_conditions_met:
