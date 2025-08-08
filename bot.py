@@ -271,6 +271,7 @@ def handle_no_position(exchange, balance, current_price, candles_primary, candle
     Handles the logic when the bot is not in a position, using multi-timeframe data.
     Returns: signal, signal_reason, analysis_details
     """
+    analysis_details = "No signal generated." # Initialize analysis_details
     is_buy_signal, is_sell_signal_ai = signals.check_buy_signal(candles_primary, candles_trend) # get_ai_signal is called inside check_buy_signal
     if is_buy_signal:
         quote_currency = SYMBOL.split('/')[1]
