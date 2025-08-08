@@ -48,9 +48,6 @@ def initialize_strategy_params():
     strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
     strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL # Add new RSI buy level
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT # Add minimum trade amount
-    strategy_params["macd_fast_period"] = signals.MACD_FAST_PERIOD
-    strategy_params["macd_slow_period"] = signals.MACD_SLOW_PERIOD
-    strategy_params["macd_signal_period"] = signals.MACD_SIGNAL_PERIOD
     logger.info(f"Strategy parameters initialized: {strategy_params}")
 
 def sync_position_with_exchange(exchange, symbol):
