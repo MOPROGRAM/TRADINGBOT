@@ -216,14 +216,6 @@ def get_status():
                             pass # Skipping for now to avoid inflating total with unconvertible assets
 
         # --- Get AI Model Info ---
-        ai_model_last_trained = "Not available"
-        try:
-            with open('model_info.json', 'r') as f:
-                model_info = json.load(f)
-                ai_model_last_trained = model_info.get('last_trained_date', 'N/A')
-        except (FileNotFoundError, json.JSONDecodeError):
-            logger.warning("model_info.json not found or invalid.")
-
         # --- Update Cache ---
         fresh_data = {
             "symbol": SYMBOL,
@@ -242,7 +234,7 @@ def get_status():
             "live_candles": bot_status.get("live_candles", []),
             "status_messages": [], # Status messages are now handled by the bot's log/state
             "last_modified": state.get('last_modified'),
-            "ai_model_last_trained": ai_model_last_trained,
+            "ai_model_last_trained": "AI Model Removed", # Indicate AI model is removed
             "last_buy_signal_time": bot_status.get("last_buy_signal_time"), # Add last buy signal time
             "last_sell_signal_time": bot_status.get("last_sell_signal_time") # Add last sell signal time
         }
@@ -262,7 +254,8 @@ def get_status():
             "last_modified": None,
             "total_balance_usdt": 0.0, # Ensure this is always present
             "last_buy_signal_time": None, # Ensure this is always present
-            "last_sell_signal_time": None # Ensure this is always present
+            "last_sell_signal_time": None, # Ensure this is always present
+            "ai_model_last_trained": "AI Model Removed" # Ensure this is always present
         }
 
 if __name__ == "__main__":

@@ -1,0 +1,43 @@
+2025-08-08 20:48:59,692 - bot - INFO - Strategy parameters initialized: {'timeframe': '5m', 'buy_signal_period': 20, 'sell_signal_period': 9, 'sl_percent': 'N/A', 'tp_percent': 'N/A', 'trailing_tp_percent': 'N/A', 'trailing_tp_activation_percent': 'N/A', 'trailing_sl_percent': 'N/A', 'trend_timeframe': '1h', 'trend_ema_period': 50, 'exit_rsi_level': 65, 'atr_period': 14, 'atr_sl_multiplier': 1.5, 'atr_tp_multiplier': 3.0, 'atr_trailing_tp_activation_multiplier': 2.0, 'atr_trailing_sl_multiplier': 1.0, 'buy_rsi_level': 55, 'min_trade_usdt': 10.0}
+2025-08-08 20:49:19,707 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:49:19,719 - bot - WARNING - No local state, but found position on exchange. Syncing...
+2025-08-08 20:49:19,719 - bot - INFO - Syncing position state with exchange...
+2025-08-08 20:49:19,720 - bot - WARNING - Found 500.000000 XLM on exchange. Attempting to sync from trade history.
+2025-08-08 20:49:21,585 - bot - ERROR - Could not find a recent buy trade. Falling back to approximation.
+2025-08-08 20:49:21,743 - bot - INFO - Successfully synced position using fallback.
+2025-08-08 20:49:22,189 - bot - INFO - Initial ATR-based SL/TP set. SL: 0.4524, TP: 0.4554
+2025-08-08 20:49:22,196 - bot - INFO - web_status.json updated.
+2025-08-08 20:49:32,210 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:49:34,025 - bot - INFO - web_status.json updated.
+2025-08-08 20:49:44,038 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:49:45,737 - bot - INFO - web_status.json updated.
+2025-08-08 20:49:55,749 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:49:57,332 - bot - INFO - web_status.json updated.
+2025-08-08 20:50:07,349 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:50:09,122 - bot - INFO - web_status.json updated.
+2025-08-08 20:50:19,135 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:50:20,769 - bot - INFO - web_status.json updated.
+2025-08-08 20:50:30,785 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:50:32,547 - bot - INFO - web_status.json updated.
+2025-08-08 20:50:42,561 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:50:44,517 - bot - INFO - web_status.json updated.
+2025-08-08 20:50:54,531 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:50:56,511 - bot - INFO - web_status.json updated.
+2025-08-08 20:51:06,525 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:51:08,303 - bot - INFO - web_status.json updated.
+2025-08-08 20:51:18,325 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:51:19,883 - bot - INFO - web_status.json updated.
+2025-08-08 20:51:29,896 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:51:31,886 - bot - INFO - web_status.json updated.
+2025-08-08 20:51:41,899 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:51:43,890 - bot - INFO - web_status.json updated.
+2025-08-08 20:51:53,904 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:51:55,700 - bot - INFO - web_status.json updated.
+2025-08-08 20:52:05,714 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:52:07,320 - bot - INFO - web_status.json updated.
+2025-08-08 20:52:17,334 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:52:18,859 - bot - INFO - web_status.json updated.
+2025-08-08 20:52:28,872 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:52:30,580 - bot - INFO - web_status.json updated.
+2025-08-08 20:52:40,592 - bot - INFO - --- Running bot tick ---
+2025-08-08 20:52:42,293 - bot - INFO - web_status.json updated.

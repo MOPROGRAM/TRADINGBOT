@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import pandas_ta as ta
 from logger import get_logger
-from ai_signal_generator import get_ai_signal
 
 logger = get_logger(__name__)
 
@@ -113,24 +112,20 @@ def check_buy_signal(candles_primary, candles_trend):
 
     # Condition 2: RSI between 55 and 70 (Positive momentum without overbought)
     latest_rsi = rsi.iloc[-1]
-    rsi_ok = BUY_RSI_LEVEL < latest_rsi < BUY_RSI_UPPER_LEVEL
+    rsi_ok = latest_rsi > 50 # Changed from 55 < RSI < 70 to RSI > 50 for more flexibility
 
-    # Condition 3: Current trading volume >= 80% of SMA(20) of trading volume
+    # Condition 3: Current trading volume >= 50% of SMA(20) of trading volume (adjusted from 80%)
     latest_volume = df_primary['volume'].iloc[-1]
-    volume_ok = latest_volume >= (volume_sma * 0.8)
-
-    # Condition 4: AI signal generator returns "buy"
-    ai_buy_ok, _ = get_ai_signal(candles_primary)
+    volume_ok = latest_volume >= (volume_sma * 0.5) # Adjusted from 0.8 to 0.5 for more flexibility
     
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and rsi_ok and volume_ok and ai_buy_ok
+    all_conditions_met = trend_ok and rsi_ok and volume_ok # Removed AI buy signal dependency
     
     # Build the reason string for the UI
     reason_str = (
         f"Price(5m) > EMA({TREND_EMA_PERIOD})(1h): {'✅' if trend_ok else '❌'} (Price: {df_primary['close'].iloc[-1]:.4f}, EMA: {long_ema_trend.iloc[-1]:.4f}) | "
-        f"{BUY_RSI_LEVEL} < RSI < {BUY_RSI_UPPER_LEVEL}: {'✅' if rsi_ok else '❌'} (Current: {latest_rsi:.2f}) | "
-        f"Volume(5m) >= 80% SMA({VOLUME_SMA_PERIOD}): {'✅' if volume_ok else '❌'} (Latest: {latest_volume:.2f}, SMA: {volume_sma:.2f}) | "
-        f"AI Buy Signal: {'✅' if ai_buy_ok else '❌'}"
+        f"RSI > 50: {'✅' if rsi_ok else '❌'} (Current: {latest_rsi:.2f}) | "
+        f"Volume(5m) >= 50% SMA({VOLUME_SMA_PERIOD}): {'✅' if volume_ok else '❌'} (Latest: {latest_volume:.2f}, SMA: {volume_sma:.2f})"
     )
 
     if all_conditions_met:
@@ -185,18 +180,14 @@ def check_sell_signal(candles):
 
     # Combined Reversal Condition
     full_reversal_ok = reversal_pattern_met and reversal_confirmation_met
-
-    # Condition 2: AI Sell Signal
-    _, ai_sell_ok = get_ai_signal(candles)
     
     # --- Final Decision & Reason ---
-    # Sell signal if EITHER Reversal Pattern OR AI Sell Signal is met
-    any_condition_met = full_reversal_ok or ai_sell_ok
+    # Sell signal if Reversal Pattern is met (removed AI Sell Signal dependency)
+    any_condition_met = full_reversal_ok
     
     reason_str = (
         f"Reversal Pattern (3 bearish candles + >=1% drop): {'✅' if reversal_pattern_met else '❌'} | "
-        f"Reversal Confirmation (RSI < 50 OR Price < EMA({EXIT_EMA_PERIOD})): {'✅' if reversal_confirmation_met else '❌'} (RSI: {rsi.iloc[-1]:.2f}, Price: {df['close'].iloc[-1]:.4f}, EMA: {short_ema.iloc[-1]:.4f}) | "
-        f"AI Sell Signal: {'✅' if ai_sell_ok else '❌'}"
+        f"Reversal Confirmation (RSI < 50 OR Price < EMA({EXIT_EMA_PERIOD})): {'✅' if reversal_confirmation_met else '❌'} (RSI: {rsi.iloc[-1]:.2f}, Price: {df['close'].iloc[-1]:.4f}, EMA: {short_ema.iloc[-1]:.4f})"
     )
 
     if any_condition_met:

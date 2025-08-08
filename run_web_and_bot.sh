@@ -5,4 +5,4 @@
 # In production, the render.yaml configuration is used.
 
 echo "Starting web server with integrated bot..."
-uvicorn web.main:app --host 0.0.0.0 --port 8000
+python3 -m uvicorn web.main:app --host 0.0.0.0 --port 8000
