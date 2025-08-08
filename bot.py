@@ -28,8 +28,8 @@ ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
 
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
-COOL_DOWN_PERIOD_MINUTES = int(os.getenv('COOL_DOWN_PERIOD_MINUTES', 30)) # New: Cool-down period after a loss
 MIN_TRADE_USDT = float(os.getenv('MIN_TRADE_USDT', 10.0)) # New: Minimum trade amount in quote currency
+SIGNAL_EXPIRATION_MINUTES = int(os.getenv('SIGNAL_EXPIRATION_MINUTES', 5)) # New: How long a signal remains valid
 
 def initialize_strategy_params():
     """
@@ -47,7 +47,6 @@ def initialize_strategy_params():
     strategy_params["atr_trailing_tp_activation_multiplier"] = ATR_TRAILING_TP_ACTIVATION_MULTIPLIER
     strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
     strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL # Add new RSI buy level
-    strategy_params["cool_down_period_minutes"] = COOL_DOWN_PERIOD_MINUTES # Add cool-down period
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT # Add minimum trade amount
     strategy_params["macd_fast_period"] = signals.MACD_FAST_PERIOD
     strategy_params["macd_slow_period"] = signals.MACD_SLOW_PERIOD
@@ -169,11 +168,6 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     send_telegram_message(msg)
     logger.info(msg)
     
-    # If it was a losing trade, record the timestamp for cool-down
-    if pnl_percent < 0:
-        state['last_loss_timestamp'] = datetime.now().isoformat()
-        save_state(state) # Save state immediately after recording loss timestamp
-        logger.info(f"Recorded last loss at {state['last_loss_timestamp']}")
 
     clear_state()
     return True
@@ -277,20 +271,7 @@ def handle_no_position(exchange, balance, current_price, candles_primary, candle
     Handles the logic when the bot is not in a position, using multi-timeframe data.
     Returns: signal, signal_reason, analysis_details
     """
-    state = load_state() # Ensure we have the latest state for cool-down check
-    last_loss_timestamp_str = state.get('last_loss_timestamp')
-
-    if last_loss_timestamp_str:
-        last_loss_time = datetime.fromisoformat(last_loss_timestamp_str)
-        time_since_last_loss = datetime.now() - last_loss_time
-        
-        if time_since_last_loss < timedelta(minutes=COOL_DOWN_PERIOD_MINUTES):
-            remaining_cooldown = timedelta(minutes=COOL_DOWN_PERIOD_MINUTES) - time_since_last_loss
-            reason = f"Cool-down active. Wait {int(remaining_cooldown.total_seconds() / 60)} mins."
-            logger.info(f"In cool-down period. Remaining: {int(remaining_cooldown.total_seconds() / 60)} minutes.")
-            return "Cool-down", reason, reason
-
-    is_buy_signal, analysis_details = signals.check_buy_signal(candles_primary, candles_trend)
+    is_buy_signal, is_sell_signal_ai = signals.check_buy_signal(candles_primary, candles_trend) # get_ai_signal is called inside check_buy_signal
     if is_buy_signal:
         quote_currency = SYMBOL.split('/')[1]
         amount_usdt = balance.get(quote_currency, {}).get('free', 0)
@@ -314,15 +295,27 @@ def handle_no_position(exchange, balance, current_price, candles_primary, candle
                     'tp_price': None, # Will be calculated on first tick after buy
                     'trailing_sl_price': None # Will be calculated on first tick after buy
                 }
-                # Clear last_loss_timestamp after a successful buy
-                if 'last_loss_timestamp' in new_state:
-                    del new_state['last_loss_timestamp']
+                
+                # Clear any pending buy signal after successful execution
+                if 'pending_buy_signal' in new_state:
+                    del new_state['pending_buy_signal']
+
                 save_state(new_state)
                 msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {analysis_details}"
                 send_telegram_message(msg)
                 logger.info(msg)
                 return "Buy", analysis_details, analysis_details
     
+    # If buy signal is generated but not executed (e.g., insufficient balance), store it as pending
+    if is_buy_signal:
+        state['pending_buy_signal'] = {
+            'timestamp': datetime.now().isoformat(),
+            'price_at_signal': current_price,
+            'analysis_details': analysis_details
+        }
+        save_state(state)
+        return "Pending Buy", analysis_details, analysis_details
+
     return "Waiting (no position)", "No buy signal.", analysis_details
 
 def run_bot_tick():
@@ -335,6 +328,8 @@ def run_bot_tick():
     signal_reason = "Bot tick started."
     analysis_details = "Initializing..."
     candles_primary = []
+    last_buy_signal_time = None # New: To store the timestamp of the last buy signal
+    last_sell_signal_time = None # New: To store the timestamp of the last sell signal
 
     try:
         exchange = get_exchange()
@@ -372,9 +367,95 @@ def run_bot_tick():
                 # Note: handle_in_position still uses primary candles for SL/TP/Exit signals
                 signal, signal_reason, trade_executed, analysis_details = handle_in_position(exchange, state, current_price, candles_primary)
                 if trade_executed:
+                    # If a trade was executed (sell), update the sell signal time
+                    if signal == "Sold": # Assuming "Sold" is the signal when a sell trade occurs
+                        last_sell_signal_time = datetime.now().isoformat()
+                    # Clear any pending sell signal after successful execution
+                    state = load_state() # Reload state to ensure latest
+                    if 'pending_sell_signal' in state:
+                        del state['pending_sell_signal']
+                        save_state(state)
                     return # Bot tick is done for now
             else:
                 signal, signal_reason, analysis_details = handle_no_position(exchange, balance, current_price, candles_primary, candles_trend)
+                # If a buy signal was generated, update the buy signal time
+                if signal == "Buy": # Assuming "Buy" is the signal when a buy trade occurs
+                    last_buy_signal_time = datetime.now().isoformat()
+
+        # --- Review Pending Signals (if any) ---
+        state = load_state() # Reload state to get latest
+        
+        # Review pending BUY signal
+        pending_buy = state.get('pending_buy_signal')
+        if pending_buy:
+            signal_time = datetime.fromisoformat(pending_buy['timestamp'])
+            time_since_signal = datetime.now() - signal_time
+            
+            if time_since_signal > timedelta(minutes=SIGNAL_EXPIRATION_MINUTES):
+                logger.info(f"Pending BUY signal expired. Time since signal: {time_since_signal.total_seconds()/60:.1f} mins.")
+                # Re-evaluate current buy conditions
+                re_evaluate_buy, re_eval_details = signals.check_buy_signal(candles_primary, candles_trend)
+                if re_evaluate_buy:
+                    logger.info("Expired BUY signal still valid. Attempting re-entry.")
+                    # Attempt to buy again (logic from handle_no_position)
+                    quote_currency = SYMBOL.split('/')[1]
+                    amount_usdt = balance.get(quote_currency, {}).get('free', 0)
+                    if amount_usdt >= MIN_TRADE_USDT:
+                        buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+                        if buy_order:
+                            new_state = load_state()
+                            new_state['has_position'] = True
+                            new_state['position'] = {
+                                'entry_price': buy_order['price'],
+                                'size': buy_order['amount'],
+                                'timestamp': buy_order['datetime'],
+                                'highest_price_after_tp': None,
+                                'sl_price': None,
+                                'tp_price': None,
+                                'trailing_sl_price': None
+                            }
+                            if 'pending_buy_signal' in new_state: del new_state['pending_buy_signal']
+                            save_state(new_state)
+                            msg = f"🟢 <b>RE-ENTRY BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {re_eval_details}"
+                            send_telegram_message(msg)
+                            logger.info(msg)
+                            signal, signal_reason, analysis_details = "Re-Entry Buy", re_eval_details, re_eval_details
+                        else:
+                            signal, signal_reason, analysis_details = "Re-Entry Failed", "Could not execute re-entry buy order.", re_eval_details
+                    else:
+                        signal, signal_reason, analysis_details = "Re-Entry Skipped", "Insufficient balance for re-entry.", re_eval_details
+                else:
+                    logger.info("Expired BUY signal no longer valid. Discarding.")
+                    del state['pending_buy_signal']
+                    save_state(state)
+                    signal, signal_reason, analysis_details = "Discarded Buy", "Expired signal no longer valid.", re_eval_details
+            else:
+                signal, signal_reason, analysis_details = "Pending Buy", "Waiting for execution or expiration.", pending_buy['analysis_details']
+
+        # Review pending SELL signal (if any) - similar logic to buy
+        pending_sell = state.get('pending_sell_signal')
+        if pending_sell:
+            signal_time = datetime.fromisoformat(pending_sell['timestamp'])
+            time_since_signal = datetime.now() - signal_time
+            
+            if time_since_signal > timedelta(minutes=SIGNAL_EXPIRATION_MINUTES):
+                logger.info(f"Pending SELL signal expired. Time since signal: {time_since_signal.total_seconds()/60:.1f} mins.")
+                # Re-evaluate current sell conditions
+                re_evaluate_sell, re_eval_details = signals.check_sell_signal(candles_primary) # Assuming sell signal uses primary candles
+                if re_evaluate_sell:
+                    logger.info("Expired SELL signal still valid. Attempting re-exit.")
+                    # Attempt to sell again (logic from execute_sell_and_record_trade)
+                    if execute_sell_and_record_trade(exchange, state, "Re-Entry Sell Signal", current_price):
+                        signal, signal_reason, analysis_details = "Re-Entry Sell", re_eval_details, re_eval_details
+                    else:
+                        signal, signal_reason, analysis_details = "Re-Entry Sell Failed", "Could not execute re-entry sell order.", re_eval_details
+                else:
+                    logger.info("Expired SELL signal no longer valid. Discarding.")
+                    del state['pending_sell_signal']
+                    save_state(state)
+                    signal, signal_reason, analysis_details = "Discarded Sell", "Expired signal no longer valid.", re_eval_details
+            else:
+                signal, signal_reason, analysis_details = "Pending Sell", "Waiting for execution or expiration.", pending_sell['analysis_details']
 
     except Exception as e:
         logger.error(f"Bot tick error: {e}", exc_info=True)
@@ -385,7 +466,9 @@ def run_bot_tick():
             "signal": signal, 
             "signal_reason": signal_reason, 
             "analysis_details": analysis_details,
-            "live_candles": candles_primary
+            "live_candles": candles_primary,
+            "last_buy_signal_time": last_buy_signal_time, # Add to web status
+            "last_sell_signal_time": last_sell_signal_time # Add to web status
         })
 
 # Initialize parameters on startup

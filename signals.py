@@ -14,6 +14,7 @@ TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
 BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55))
 BUY_RSI_UPPER_LEVEL = int(os.getenv('BUY_RSI_UPPER_LEVEL', 70)) # New RSI upper level for buy signal
+REVERSAL_DROP_PERCENTAGE = float(os.getenv('REVERSAL_DROP_PERCENTAGE', 0.005)) # 0.5% drop for reversal confirmation
 
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
@@ -159,18 +160,18 @@ def check_buy_signal(candles_primary, candles_trend):
             macd_ok = True
 
     # Condition 5: AI Confirmation
-    ai_ok = get_ai_signal(cleaned_candles_primary)
+    ai_buy_ok, ai_sell_ok = get_ai_signal(cleaned_candles_primary)
     
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and volume_ok and rsi_ok and macd_ok and ai_ok
+    all_conditions_met = trend_ok and volume_ok and rsi_ok and macd_ok and ai_buy_ok
     
     # Build the reason string for the UI
     reason_str = (
-        f"Trend(1h) > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} | "
-        f"Volume(5m): {'✅' if volume_ok else '❌'} | "
-        f"{BUY_RSI_LEVEL} < RSI < {BUY_RSI_UPPER_LEVEL}: {'✅' if rsi_ok else '❌'} | "
-        f"MACD > Signal: {'✅' if macd_ok else '❌'} | "
-        f"AI Signal: {'✅' if ai_ok else '❌'}"
+        f"Trend(1h) > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} (Price: {df_primary['close'].iloc[-1]:.4f}, EMA: {long_ema_trend.iloc[-1]:.4f}) | "
+        f"Volume(5m): {'✅' if volume_ok else '❌'} (Latest: {latest_volume:.2f}, SMA: {volume_sma:.2f}) | "
+        f"{BUY_RSI_LEVEL} < RSI < {BUY_RSI_UPPER_LEVEL}: {'✅' if rsi_ok else '❌'} (Current: {latest_rsi:.2f}) | "
+        f"MACD > Signal: {'✅' if macd_ok else '❌'} (MACD: {macd_line:.4f}, Signal: {macd_signal:.4f}) | "
+        f"AI Buy Signal: {'✅' if ai_buy_ok else '❌'}"
     )
 
     if all_conditions_met:
@@ -231,7 +232,18 @@ def check_sell_signal(candles):
             logger.error(err_msg)
             return False, err_msg
             
-    reversal_ok = (c1_close > c2_close > c3_close and c1_low > c2_low > c3_low)
+    # Condition 1: Strong 3-Candle Reversal (successively lower closes and lows)
+    basic_reversal = (c1_close < c2_close < c3_close and c1_low < c2_low < c3_low) # Corrected logic for reversal (c1 is latest, c3 is oldest)
+    
+    # Condition 1.1: Significant percentage drop from the start of the reversal pattern
+    # Ensure c3_close is not zero to avoid division by zero
+    if c3_close == 0:
+        percentage_drop_ok = False
+    else:
+        percentage_drop = (c3_close - c1_close) / c3_close
+        percentage_drop_ok = percentage_drop >= REVERSAL_DROP_PERCENTAGE
+
+    reversal_ok = basic_reversal and percentage_drop_ok
 
     # Condition 2: Price Below Short-Term EMA & RSI Confirmation
     price_below_ema = df['close'].iloc[-1] < short_ema.iloc[-1]
@@ -250,13 +262,17 @@ def check_sell_signal(candles):
             if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line >= prev_macd_signal:
                 macd_ok = True
 
+    # Condition 4: AI Sell Signal
+    _, ai_sell_ok = get_ai_signal(candles) # Pass original candles for now, will clean inside get_ai_signal
+    
     # --- Final Decision & Reason ---
-    any_condition_met = reversal_ok or ema_rsi_ok or macd_ok
+    any_condition_met = reversal_ok or ema_rsi_ok or macd_ok or ai_sell_ok
     
     reason_str = (
-        f"Reversal Pattern: {'✅' if reversal_ok else '❌'} | "
-        f"Price < EMA({EXIT_EMA_PERIOD}) & RSI < {EXIT_RSI_LEVEL}: {'✅' if ema_rsi_ok else '❌'} | "
-        f"MACD Crossover Down: {'✅' if macd_ok else '❌'}"
+        f"Reversal Pattern: {'✅' if reversal_ok else '❌'} (Drop: {percentage_drop*100:.2f}%) | "
+        f"Price < EMA({EXIT_EMA_PERIOD}) & RSI < {EXIT_RSI_LEVEL}: {'✅' if ema_rsi_ok else '❌'} (Price: {df['close'].iloc[-1]:.4f}, EMA: {short_ema.iloc[-1]:.4f}, RSI: {rsi.iloc[-1]:.2f}) | "
+        f"MACD Crossover Down: {'✅' if macd_ok else '❌'} (MACD: {macd_line:.4f}, Signal: {macd_signal:.4f}) | "
+        f"AI Sell Signal: {'✅' if ai_sell_ok else '❌'}"
     )
 
     if any_condition_met:

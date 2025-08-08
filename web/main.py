@@ -1,4 +1,3 @@
-
 import os
 import sys
 import json
@@ -195,6 +194,27 @@ def get_status():
         # Total PnL is calculated on the FULL history for accuracy
         total_pnl = sum(trade.get('pnl_percent', 0) for trade in history)
 
+        # --- Calculate Total Balance in USDT ---
+        total_balance_usdt = 0.0
+        if balance:
+            for currency, data in balance.items():
+                free_amount = data.get('free', 0.0)
+                if free_amount > 0:
+                    if currency == 'USDT':
+                        total_balance_usdt += free_amount
+                    else:
+                        # Try to get price for conversion
+                        try:
+                            pair = f"{currency}/USDT"
+                            price_ticker = exchange.fetch_ticker(pair)
+                            price_in_usdt = price_ticker['last']
+                            total_balance_usdt += free_amount * price_in_usdt
+                        except Exception as e:
+                            logger.warning(f"Could not fetch price for {pair} to calculate total USDT balance: {e}")
+                            # If price cannot be fetched, just add the amount as is (might be inaccurate)
+                            # Or, for safety, skip this currency from total_balance_usdt if conversion fails
+                            pass # Skipping for now to avoid inflating total with unconvertible assets
+
         # --- Get AI Model Info ---
         ai_model_last_trained = "Not available"
         try:
@@ -209,6 +229,7 @@ def get_status():
             "symbol": SYMBOL,
             "current_price": current_price,
             "balance": balance,
+            "total_balance_usdt": total_balance_usdt, # Add total balance in USDT
             "position": state.get('position', {}),
             "has_position": state.get('has_position', False),
             "pnl": pnl,
@@ -221,7 +242,9 @@ def get_status():
             "live_candles": bot_status.get("live_candles", []),
             "status_messages": [], # Status messages are now handled by the bot's log/state
             "last_modified": state.get('last_modified'),
-            "ai_model_last_trained": ai_model_last_trained
+            "ai_model_last_trained": ai_model_last_trained,
+            "last_buy_signal_time": bot_status.get("last_buy_signal_time"), # Add last buy signal time
+            "last_sell_signal_time": bot_status.get("last_sell_signal_time") # Add last sell signal time
         }
         API_CACHE = fresh_data
         LAST_API_CALL_TIME = time.time()
@@ -236,7 +259,10 @@ def get_status():
             "trade_history": [], "total_pnl": 0, "error": str(e),
             "signal": "API Error", "signal_reason": "Failed to assemble data", "strategy_params": {}, "live_candles": [],
             "status_messages": [],
-            "last_modified": None
+            "last_modified": None,
+            "total_balance_usdt": 0.0, # Ensure this is always present
+            "last_buy_signal_time": None, # Ensure this is always present
+            "last_sell_signal_time": None # Ensure this is always present
         }
 
 if __name__ == "__main__":
