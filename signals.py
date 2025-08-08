@@ -14,7 +14,7 @@ TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
 BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55))
 BUY_RSI_UPPER_LEVEL = int(os.getenv('BUY_RSI_UPPER_LEVEL', 70)) # New RSI upper level for buy signal
-REVERSAL_DROP_PERCENTAGE = float(os.getenv('REVERSAL_DROP_PERCENTAGE', 0.005)) # 0.5% drop for reversal confirmation
+REVERSAL_DROP_PERCENTAGE = float(os.getenv('REVERSAL_DROP_PERCENTAGE', 0.01)) # 1.0% drop for reversal confirmation (increased from 0.5%)
 
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
@@ -22,11 +22,6 @@ ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
 ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
 ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVATION_MULTIPLIER', 2.0))
 ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
-
-# MACD Parameters
-MACD_FAST_PERIOD = int(os.getenv('MACD_FAST_PERIOD', 12))
-MACD_SLOW_PERIOD = int(os.getenv('MACD_SLOW_PERIOD', 26))
-MACD_SIGNAL_PERIOD = int(os.getenv('MACD_SIGNAL_PERIOD', 9))
 
 def calculate_atr(candles, period=ATR_PERIOD):
     """
@@ -53,32 +48,6 @@ def calculate_atr(candles, period=ATR_PERIOD):
         return None
     
     return atr.iloc[-1]
-
-def calculate_macd(candles, fast_period=MACD_FAST_PERIOD, slow_period=MACD_SLOW_PERIOD, signal_period=MACD_SIGNAL_PERIOD):
-    """
-    Calculates MACD, MACD Signal Line, and MACD Histogram.
-    """
-    if len(candles) < max(fast_period, slow_period, signal_period):
-        logger.warning(f"Not enough candles ({len(candles)}) to calculate MACD.")
-        return None, None, None
-
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    
-    # Calculate MACD using pandas_ta
-    macd_data = ta.macd(df['close'], fast=fast_period, slow=slow_period, signal=signal_period)
-    
-    if macd_data.empty:
-        return None, None, None
-
-    # The columns are typically named MACD_fast_slow_signal, MACDH_fast_slow_signal, MACDS_fast_slow_signal
-    # Use .get() for safe access in case a column is missing
-    last_row = macd_data.iloc[-1]
-    macd_line = last_row.get(f'MACD_{fast_period}_{slow_period}_{signal_period}')
-    macd_histogram = last_row.get(f'MACDh_{fast_period}_{slow_period}_{signal_period}')
-    macd_signal = last_row.get(f'MACDs_{fast_period}_{slow_period}_{signal_period}')
-
-    return macd_line, macd_signal, macd_histogram
-
 
 def check_buy_signal(candles_primary, candles_trend):
     """
@@ -129,9 +98,6 @@ def check_buy_signal(candles_primary, candles_trend):
     long_ema_trend = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
     volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
     rsi = ta.rsi(df_primary['close'], length=14)
-    # Use the cleaned data for MACD calculation
-    cleaned_candles_primary = df_primary.values.tolist()
-    macd_line, macd_signal, _ = calculate_macd(cleaned_candles_primary)
     
     # --- Validate Indicators ---
     if long_ema_trend is None or long_ema_trend.empty or pd.isna(long_ema_trend.iloc[-1]):
@@ -142,35 +108,28 @@ def check_buy_signal(candles_primary, candles_trend):
         return False, "Could not calculate RSI."
     
     # --- Apply Strategy Conditions ---
-    # Condition 1: Trend Filter
+    # Condition 1: Current price on 5m frame > EMA(50) on 1h frame (Uptrend)
     trend_ok = df_primary['close'].iloc[-1] > long_ema_trend.iloc[-1]
 
-    # Condition 2: Volume Confirmation
-    latest_volume = df_primary['volume'].iloc[-1]
-    volume_ok = latest_volume > (volume_sma * 0.8)
-
-    # Condition 3: RSI Confirmation
+    # Condition 2: RSI between 55 and 70 (Positive momentum without overbought)
     latest_rsi = rsi.iloc[-1]
     rsi_ok = BUY_RSI_LEVEL < latest_rsi < BUY_RSI_UPPER_LEVEL
 
-    # Condition 4: MACD Confirmation
-    macd_ok = False
-    if macd_line is not None and macd_signal is not None:
-        if macd_line > macd_signal:
-            macd_ok = True
+    # Condition 3: Current trading volume >= 80% of SMA(20) of trading volume
+    latest_volume = df_primary['volume'].iloc[-1]
+    volume_ok = latest_volume >= (volume_sma * 0.8)
 
-    # Condition 5: AI Confirmation
-    ai_buy_ok, ai_sell_ok = get_ai_signal(cleaned_candles_primary)
+    # Condition 4: AI signal generator returns "buy"
+    ai_buy_ok, _ = get_ai_signal(candles_primary)
     
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and volume_ok and rsi_ok and macd_ok and ai_buy_ok
+    all_conditions_met = trend_ok and rsi_ok and volume_ok and ai_buy_ok
     
     # Build the reason string for the UI
     reason_str = (
-        f"Trend(1h) > EMA({TREND_EMA_PERIOD}): {'✅' if trend_ok else '❌'} (Price: {df_primary['close'].iloc[-1]:.4f}, EMA: {long_ema_trend.iloc[-1]:.4f}) | "
-        f"Volume(5m): {'✅' if volume_ok else '❌'} (Latest: {latest_volume:.2f}, SMA: {volume_sma:.2f}) | "
+        f"Price(5m) > EMA({TREND_EMA_PERIOD})(1h): {'✅' if trend_ok else '❌'} (Price: {df_primary['close'].iloc[-1]:.4f}, EMA: {long_ema_trend.iloc[-1]:.4f}) | "
         f"{BUY_RSI_LEVEL} < RSI < {BUY_RSI_UPPER_LEVEL}: {'✅' if rsi_ok else '❌'} (Current: {latest_rsi:.2f}) | "
-        f"MACD > Signal: {'✅' if macd_ok else '❌'} (MACD: {macd_line:.4f}, Signal: {macd_signal:.4f}) | "
+        f"Volume(5m) >= 80% SMA({VOLUME_SMA_PERIOD}): {'✅' if volume_ok else '❌'} (Latest: {latest_volume:.2f}, SMA: {volume_sma:.2f}) | "
         f"AI Buy Signal: {'✅' if ai_buy_ok else '❌'}"
     )
 
@@ -209,69 +168,34 @@ def check_sell_signal(candles):
     # --- Calculate all sell indicators ---
     short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
     rsi = ta.rsi(df['close'], length=14)
-    # Use the cleaned data for MACD calculation
-    cleaned_candles = df.values.tolist()
-    macd_line, macd_signal, _ = calculate_macd(cleaned_candles)
-
+    
     # --- Validate Indicators ---
     if short_ema is None or short_ema.empty or pd.isna(short_ema.iloc[-1]):
         return False, "Could not calculate exit EMA."
     if rsi is None or rsi.empty or pd.isna(rsi.iloc[-1]):
         return False, "Could not calculate RSI for sell."
 
-    # --- Apply Strategy Conditions ---
-    # Condition 1: Strong 3-Candle Reversal
-    c1_close, c2_close, c3_close = df['close'].iloc[-3:]
-    c1_low, c2_low, c3_low = df['low'].iloc[-3:]
-    
-    # --- Final Validation Step ---
-    # Explicitly check types before comparison to prevent the persistent TypeError.
-    for val in [c1_close, c2_close, c3_close, c1_low, c2_low, c3_low]:
-        if not isinstance(val, (int, float)):
-            err_msg = f"FATAL: Invalid, non-numeric data type '{type(val).__name__}' found in reversal check."
-            logger.error(err_msg)
-            return False, err_msg
-            
-    # Condition 1: Strong 3-Candle Reversal (successively lower closes and lows)
-    basic_reversal = (c1_close < c2_close < c3_close and c1_low < c2_low < c3_low) # Corrected logic for reversal (c1 is latest, c3 is oldest)
-    
-    # Condition 1.1: Significant percentage drop from the start of the reversal pattern
-    # Ensure c3_close is not zero to avoid division by zero
-    if c3_close == 0:
-        percentage_drop_ok = False
-    else:
-        percentage_drop = (c3_close - c1_close) / c3_close
-        percentage_drop_ok = percentage_drop >= REVERSAL_DROP_PERCENTAGE
+    # Condition 1: Reversal Pattern
+    reversal_pattern_met = check_three_bearish_candles(candles)
 
-    reversal_ok = basic_reversal and percentage_drop_ok
+    # Confirmation for Reversal Pattern: RSI < 50 OR Current Price < EMA(9)
+    rsi_confirms_reversal = rsi.iloc[-1] < 50
+    price_below_ema_confirms_reversal = df['close'].iloc[-1] < short_ema.iloc[-1]
+    reversal_confirmation_met = rsi_confirms_reversal or price_below_ema_confirms_reversal
 
-    # Condition 2: Price Below Short-Term EMA & RSI Confirmation
-    price_below_ema = df['close'].iloc[-1] < short_ema.iloc[-1]
-    rsi_confirms = rsi.iloc[-1] < EXIT_RSI_LEVEL
-    ema_rsi_ok = price_below_ema and rsi_confirms
+    # Combined Reversal Condition
+    full_reversal_ok = reversal_pattern_met and reversal_confirmation_met
 
-    # Condition 3: MACD Sell Signal (MACD line crosses below Signal line)
-    macd_ok = False
-    if macd_line is not None and macd_signal is not None and macd_line < macd_signal:
-        # Check for a crossover, not just that it's below
-        macd_data_prev = ta.macd(df['close'].iloc[:-1], fast=MACD_FAST_PERIOD, slow=MACD_SLOW_PERIOD, signal=MACD_SIGNAL_PERIOD)
-        if not macd_data_prev.empty:
-            prev_last_row = macd_data_prev.iloc[-1]
-            prev_macd_line = prev_last_row.get(f'MACD_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-            prev_macd_signal = prev_last_row.get(f'MACDs_{MACD_FAST_PERIOD}_{MACD_SLOW_PERIOD}_{MACD_SIGNAL_PERIOD}')
-            if prev_macd_line is not None and prev_macd_signal is not None and prev_macd_line >= prev_macd_signal:
-                macd_ok = True
-
-    # Condition 4: AI Sell Signal
-    _, ai_sell_ok = get_ai_signal(candles) # Pass original candles for now, will clean inside get_ai_signal
+    # Condition 2: AI Sell Signal
+    _, ai_sell_ok = get_ai_signal(candles)
     
     # --- Final Decision & Reason ---
-    any_condition_met = reversal_ok or ema_rsi_ok or macd_ok or ai_sell_ok
+    # Sell signal if EITHER Reversal Pattern OR AI Sell Signal is met
+    any_condition_met = full_reversal_ok or ai_sell_ok
     
     reason_str = (
-        f"Reversal Pattern: {'✅' if reversal_ok else '❌'} (Drop: {percentage_drop*100:.2f}%) | "
-        f"Price < EMA({EXIT_EMA_PERIOD}) & RSI < {EXIT_RSI_LEVEL}: {'✅' if ema_rsi_ok else '❌'} (Price: {df['close'].iloc[-1]:.4f}, EMA: {short_ema.iloc[-1]:.4f}, RSI: {rsi.iloc[-1]:.2f}) | "
-        f"MACD Crossover Down: {'✅' if macd_ok else '❌'} (MACD: {macd_line:.4f}, Signal: {macd_signal:.4f}) | "
+        f"Reversal Pattern (3 bearish candles + >=1% drop): {'✅' if reversal_pattern_met else '❌'} | "
+        f"Reversal Confirmation (RSI < 50 OR Price < EMA({EXIT_EMA_PERIOD})): {'✅' if reversal_confirmation_met else '❌'} (RSI: {rsi.iloc[-1]:.2f}, Price: {df['close'].iloc[-1]:.4f}, EMA: {short_ema.iloc[-1]:.4f}) | "
         f"AI Sell Signal: {'✅' if ai_sell_ok else '❌'}"
     )
 
@@ -281,6 +205,53 @@ def check_sell_signal(candles):
     else:
         logger.info(f"No Sell Signal: {reason_str}")
         return False, reason_str
+
+def check_three_bearish_candles(candles: list) -> bool:
+    """
+    Checks for a 3-candle bearish reversal pattern on the 5-minute timeframe.
+    Conditions:
+    1. Last 3 candles: each closed lower than the previous.
+    2. Last 3 candles: each has a lower low than the previous.
+    3. Total drop from the first to the third candle >= 1%.
+    """
+    if len(candles) < 3:
+        return False
+
+    # Get the last 3 candles
+    # Ensure candles are sorted by timestamp in ascending order
+    # Assuming candles are already in ascending order (oldest to newest)
+    c1 = candles[-3] # Oldest of the three
+    c2 = candles[-2] # Middle
+    c3 = candles[-1] # Latest
+
+    # Extract close and low prices
+    # Ensure these are numeric
+    try:
+        c1_close, c1_low = float(c1[4]), float(c1[3])
+        c2_close, c2_low = float(c2[4]), float(c2[3])
+        c3_close, c3_low = float(c3[4]), float(c3[3])
+    except (ValueError, IndexError):
+        logger.warning("Invalid candle data format for bearish candle check.")
+        return False
+
+    # Condition 1: Each candle closed lower than the previous
+    closes_lower = (c3_close < c2_close) and (c2_close < c1_close)
+
+    # Condition 2: Each candle has a lower low than the previous
+    lows_lower = (c3_low < c2_low) and (c2_low < c1_low)
+
+    # Condition 3: Total drop from the first to the third candle >= 1%
+    # Calculate drop from the open of the first candle to the close of the third candle
+    # Or from the close of the first candle to the close of the third candle
+    # The request says "مجموع الانخفاض من الشمعة الأولى إلى الثالثة ≥ 1%."
+    # This implies (oldest_close - latest_close) / oldest_close >= 0.01
+    if c1_close == 0: # Avoid division by zero
+        percentage_drop_ok = False
+    else:
+        percentage_drop = (c1_close - c3_close) / c1_close
+        percentage_drop_ok = percentage_drop >= REVERSAL_DROP_PERCENTAGE
+
+    return closes_lower and lows_lower and percentage_drop_ok
 
 def check_sl_tp(current_price, position_state, sl_price, tp_price, trailing_sl_price, trailing_tp_activation_price):
     """
