@@ -31,6 +31,29 @@ class BinanceWebSocketClient:
             **{interval: "disconnected" for interval in kline_intervals}
         }
 
+    def populate_historical_candles(self, exchange, symbol_for_ccxt):
+        """Fetches historical kline data to pre-populate the deques."""
+        logger.info("Populating historical kline data...")
+        for interval in self.kline_intervals:
+            try:
+                # The number of candles should be enough for the indicators to warm up.
+                # Using max_len ensures we fill up the deque.
+                logger.info(f"Fetching historical data for {symbol_for_ccxt} on {interval} timeframe (limit: {self.max_len})...")
+                historical_candles = exchange.fetch_ohlcv(symbol_for_ccxt, interval, limit=self.max_len)
+                
+                with self.lock:
+                    # The deque will automatically handle the max_len limit
+                    self.kline_data[interval].extend(historical_candles)
+                
+                logger.info(f"Successfully populated {len(historical_candles)} historical candles for {interval}.")
+                
+                # Set the initialized event for this kline now that it has historical data
+                if len(historical_candles) > 0:
+                    self.kline_initialized[interval].set()
+
+            except Exception as e:
+                logger.error(f"Failed to fetch historical data for {interval}: {e}", exc_info=True)
+
     async def _connect_kline_websocket(self, interval: str):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@kline_{interval}"
         logger.info(f"Connecting to kline WebSocket: {uri}")

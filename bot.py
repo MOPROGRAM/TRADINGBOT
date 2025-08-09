@@ -59,17 +59,24 @@ async def initialize_bot():
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT
     logger.info(f"Strategy parameters initialized: {strategy_params}")
     
+    # First, populate cache with historical data
+    exchange = get_exchange()
+    websocket_client.populate_historical_candles(exchange, SYMBOL)
+
+    # Now, start the live WebSocket client
     start_websocket_client()
     atexit.register(stop_websocket_client)
 
-    # Wait for WebSocket to provide initial data before starting the main loop
-    data_ready = await websocket_client.wait_for_all_kline_data(timeout=120) # Wait up to 2 minutes
-    if not data_ready:
-        logger.critical("Failed to get initial kline data from WebSocket. Bot cannot start.")
-        # In a real scenario, you might want to exit or have a more robust retry mechanism here.
+    # Optional: Wait for the first LIVE candle to ensure connection is truly active
+    # This is a good practice to make sure we don't start the loop with only historical data.
+    logger.info("Waiting for live data stream to confirm connection...")
+    live_data_ready = await websocket_client.wait_for_all_kline_data(timeout=60)
+    if not live_data_ready:
+        logger.critical("WebSocket connected but did not receive a live candle within the timeout. Exiting.")
         stop_websocket_client()
-        exit(1) # Exit if data isn't ready
-    logger.info("Initial data received. Starting main bot loop.")
+        exit(1)
+
+    logger.info("Historical data populated and live stream confirmed. Starting main bot loop.")
 
 
 def sync_position_with_exchange(exchange, symbol):
