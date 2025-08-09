@@ -248,7 +248,11 @@ async def get_status():
         total_balance_usdt = 0.0
         if balance:
             for currency, data in balance.items():
-                free_amount = data.get('free', 0.0)
+                if isinstance(data, dict):
+                    free_amount = data.get('free', 0.0)
+                else:
+                    free_amount = data
+
                 if free_amount > 0:
                     if currency == 'USDT':
                         total_balance_usdt += free_amount

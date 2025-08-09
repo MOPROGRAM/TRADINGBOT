@@ -3,6 +3,7 @@ import json
 import asyncio
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+import ccxt # Import ccxt to catch its exceptions
 
 from logger import get_logger
 from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade, start_websocket_client
@@ -481,11 +482,22 @@ async def run_bot_tick():
             else:
                 signal, signal_reason, analysis_details = "Pending Sell", "Waiting for execution or expiration.", pending_sell['analysis_details']
 
+    except ccxt.base.errors.DDoSProtection as e:
+        logger.error(f"Bot tick DDoSProtection error: {e}", exc_info=True)
+        send_telegram_message(f"⚠️ <b>Bot Error (DDoS Protection)</b>\n<code>{e}</code>")
+        signal, signal_reason, analysis_details = "DDoS Protection", str(e), str(e)
     except Exception as e:
         logger.error(f"Bot tick error: {e}", exc_info=True)
         send_telegram_message(f"⚠️ <b>Bot Error</b>\n<code>{e}</code>")
         signal, signal_reason, analysis_details = "Error", str(e), str(e)
     finally:
+        # Ensure exchange connection is closed
+        try:
+            await exchange.close()
+            logger.info("Exchange connection closed.")
+        except Exception as e:
+            logger.error(f"Error closing exchange connection: {e}")
+
         write_web_status({
             "signal": signal, 
             "signal_reason": signal_reason, 
