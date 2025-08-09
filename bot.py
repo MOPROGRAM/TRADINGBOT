@@ -508,22 +508,3 @@ def run_bot_tick():
 
 # Initialize parameters on startup
 initialize_strategy_params()
-<environment_details>
-# VSCode Visible Files
-bot.py
-
-# VSCode Open Tabs
-exchange.py
-web/main.py
-bot.py
-.env
-web/templates/index.html
-
-# Current Time
-
-# Context Window Usage
-263,291 / 1,048.576K tokens used (25%)
-
-# Current Mode
-ACT MODE
-</environment_details>
