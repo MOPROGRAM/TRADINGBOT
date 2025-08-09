@@ -112,19 +112,18 @@ def get_account_balance(exchange):
     if DRY_RUN:
         logger.info("DRY RUN: Simulating account balance.")
         base_currency, quote_currency = SYMBOL.split('/')
+        # In dry run, return a simple dictionary similar to the 'free' balance structure.
         return {
-            quote_currency: {"free": 1000.0, "used": 0.0, "total": 1000.0},
-            base_currency: {"free": 0.0, "used": 0.0, "total": 0.0} # Start with no base currency
+            quote_currency: 1000.0,
+            base_currency: 0.0
         }
     try:
-        # Fetch the full balance details
         balance_data = exchange.fetch_balance()
-        # Return the 'free' part of the balance, which is a dictionary of currencies to their available amounts.
-        # This is more reliable than 'total' for trading decisions.
-        if isinstance(balance_data, dict) and 'free' in balance_data:
+        # The 'free' key contains a dictionary of available balances for each currency.
+        if isinstance(balance_data, dict) and 'free' in balance_data and isinstance(balance_data['free'], dict):
             return balance_data['free']
         else:
-            logger.error(f"fetch_balance returned unexpected data structure: {balance_data}. Returning empty dict.")
+            logger.error(f"fetch_balance returned an unexpected data structure: {balance_data}. Returning an empty dict.")
             return {}
     except ccxt.BaseError as e:
         logger.error(f"Error fetching account balance: {e}")

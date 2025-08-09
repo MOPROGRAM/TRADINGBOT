@@ -82,7 +82,7 @@ def sync_position_with_exchange(exchange, symbol):
 
     base_currency = symbol.split('/')[0]
     # Access 'free' balance within the dictionary structure
-    base_currency_balance = balance.get(base_currency, {}).get('free', 0)
+    base_currency_balance = balance.get(base_currency, 0)
     min_position_amount = 1 
 
     if base_currency_balance > min_position_amount:
@@ -147,7 +147,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     # 1. Get the actual available balance from the exchange right before selling.
     balance = get_account_balance(exchange)
     base_currency = SYMBOL.split('/')[0]
-    actual_sell_amount = balance.get(base_currency, {}).get('free', 0)
+    actual_sell_amount = balance.get(base_currency, 0)
     
     if actual_sell_amount < 1: # Ensure there's a sellable amount
         logger.error(f"Attempted to sell but found no sellable balance for {base_currency}.")
@@ -307,7 +307,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
     if is_buy_signal and not previous_buy_signal:
         logger.info("BUY SIGNAL CROSSOVER DETECTED: Signal changed from False to True.")
         quote_currency = SYMBOL.split('/')[1]
-        amount_usdt = balance.get(quote_currency, {}).get('free', 0)
+        amount_usdt = balance.get(quote_currency, 0)
         
         if amount_usdt < MIN_TRADE_USDT:
             reason = f"Insufficient balance ({amount_usdt:.2f} {quote_currency}) for trade."
@@ -378,7 +378,7 @@ def run_bot_tick():
             logger.error(f"get_account_balance returned non-dict: {type(balance)}. Setting to empty dict.")
             balance = {}
         base_currency = SYMBOL.split('/')[0]
-        base_currency_balance = balance.get(base_currency, {}).get('free', 0)
+        base_currency_balance = balance.get(base_currency, 0)
         min_position_amount = 1
 
         if state.get('has_position'):
@@ -443,7 +443,7 @@ def run_bot_tick():
                     logger.info("Expired BUY signal still valid. Attempting re-entry.")
                     # Attempt to buy again (logic from handle_no_position)
                     quote_currency = SYMBOL.split('/')[1]
-                    amount_usdt = balance.get(quote_currency, {}).get('free', 0)
+                    amount_usdt = balance.get(quote_currency, 0)
                     if amount_usdt >= MIN_TRADE_USDT:
                         buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
                         if buy_order:
