@@ -307,7 +307,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
     if is_buy_signal and not previous_buy_signal:
         logger.info("BUY SIGNAL CROSSOVER DETECTED: Signal changed from False to True.")
         quote_currency = SYMBOL.split('/')[1]
-        amount_usdt = balance.get(quote_currency, 0) # Corrected to directly get the float value
+        amount_usdt = balance.get(quote_currency, {}).get('free', 0)
         
         if amount_usdt < MIN_TRADE_USDT:
             reason = f"Insufficient balance ({amount_usdt:.2f} {quote_currency}) for trade."
@@ -374,8 +374,11 @@ def run_bot_tick():
 
         # --- State Validation ---
         balance = get_account_balance(exchange)
+        if not isinstance(balance, dict):
+            logger.error(f"get_account_balance returned non-dict: {type(balance)}. Setting to empty dict.")
+            balance = {}
         base_currency = SYMBOL.split('/')[0]
-        base_currency_balance = balance.get(base_currency, 0) # Corrected to directly get the float value
+        base_currency_balance = balance.get(base_currency, {}).get('free', 0)
         min_position_amount = 1
 
         if state.get('has_position'):
