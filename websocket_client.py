@@ -20,6 +20,11 @@ class BinanceWebSocketClient:
         self.websocket_threads = []
         self.running = False
         self.initialized = threading.Event() # Event to signal when the first ticker is received
+        
+        # New: Reconnection attempt counters and max delays
+        self._kline_reconnection_attempts = {interval: 0 for interval in kline_intervals}
+        self._ticker_reconnection_attempts = 0
+        self._max_reconnect_delay = 60 # Max delay in seconds
 
     async def _connect_kline_websocket(self, interval: str):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@kline_{interval}"
@@ -28,30 +33,39 @@ class BinanceWebSocketClient:
             try:
                 async with websockets.connect(uri) as websocket:
                     logger.info(f"Connected to kline WebSocket for {self.symbol}@{interval}")
+                    self._kline_reconnection_attempts[interval] = 0 # Reset on successful connection
                     while self.running:
                         message = await websocket.recv()
                         data = json.loads(message)
                         if 'k' in data:
                             kline = data['k']
-                            # [timestamp, open, high, low, close, volume, close_time, quote_asset_volume, number_of_trades, taker_buy_base_asset_volume, taker_buy_quote_asset_volume, ignore]
-                            candle = [
-                                kline['t'], # timestamp
-                                float(kline['o']), # open
-                                float(kline['h']), # high
-                                float(kline['l']), # low
-                                float(kline['c']), # close
-                                float(kline['v'])  # volume
-                            ]
-                            with self.lock:
-                                self.kline_data[interval].append(candle)
-                                # logger.debug(f"Received {interval} kline: {candle[0]} - {candle[4]}")
-            except websockets.exceptions.ConnectionClosed:
-                logger.warning(f"Kline WebSocket for {self.symbol}@{interval} closed. Reconnecting in 5s...")
-                await asyncio.sleep(5)
+                            if 't' in kline and 'o' in kline and 'h' in kline and 'l' in kline and 'c' in kline and 'v' in kline: # Ensure all keys are present
+                                candle = [
+                                    kline['t'], # timestamp
+                                    float(kline['o']), # open
+                                    float(kline['h']), # high
+                                    float(kline['l']), # low
+                                    float(kline['c']), # close
+                                    float(kline['v'])  # volume
+                                ]
+                                with self.lock:
+                                    self.kline_data[interval].append(candle)
+                                    # logger.debug(f"Received {interval} kline: {candle[0]} - {candle[4]}")
+                            else:
+                                logger.warning(f"Incomplete kline data received for {self.symbol}@{interval}: {kline}")
+                        else:
+                            logger.warning(f"Unexpected message format for kline {self.symbol}@{interval}: {data}")
+            except websockets.exceptions.ConnectionClosed as e:
+                self._kline_reconnection_attempts[interval] += 1
+                delay = min(2 ** self._kline_reconnection_attempts[interval], self._max_reconnect_delay)
+                logger.warning(f"Kline WebSocket for {self.symbol}@{interval} closed ({e}). Reconnecting in {delay}s (attempt {self._kline_reconnection_attempts[interval]})...")
+                await asyncio.sleep(delay)
             except Exception as e:
+                self._kline_reconnection_attempts[interval] += 1
+                delay = min(2 ** self._kline_reconnection_attempts[interval], self._max_reconnect_delay)
                 logger.error(f"An unexpected error occurred in kline WebSocket for {self.symbol}@{interval}: {e}", exc_info=True)
-                logger.info("Reconnecting in 10s...")
-                await asyncio.sleep(10)
+                logger.info(f"Reconnecting in {delay}s (attempt {self._kline_reconnection_attempts[interval]})...")
+                await asyncio.sleep(delay)
 
     async def _connect_ticker_websocket(self):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@ticker"
@@ -60,23 +74,30 @@ class BinanceWebSocketClient:
             try:
                 async with websockets.connect(uri) as websocket:
                     logger.info(f"Connected to ticker WebSocket for {self.symbol}")
+                    self._ticker_reconnection_attempts = 0 # Reset on successful connection
                     while self.running:
                         message = await websocket.recv()
                         data = json.loads(message)
-                        if 'c' in data: # 'c' is the close price (last price)
+                        if 'c' in data and 'E' in data: # 'c' is the close price (last price), 'E' is event time
                             with self.lock:
                                 self.ticker_data['last_price'] = float(data['c'])
                                 self.ticker_data['timestamp'] = data['E'] # Event time
                                 if not self.initialized.is_set():
                                     self.initialized.set() # Signal that we have received the first ticker
                                 # logger.debug(f"Received ticker: {self.ticker_data['last_price']}")
-            except websockets.exceptions.ConnectionClosed:
-                logger.warning(f"Ticker WebSocket for {self.symbol} closed. Reconnecting in 5s...")
-                await asyncio.sleep(5)
+                        else:
+                            logger.warning(f"Incomplete ticker data received for {self.symbol}: {data}")
+            except websockets.exceptions.ConnectionClosed as e:
+                self._ticker_reconnection_attempts += 1
+                delay = min(2 ** self._ticker_reconnection_attempts, self._max_reconnect_delay)
+                logger.warning(f"Ticker WebSocket for {self.symbol} closed ({e}). Reconnecting in {delay}s (attempt {self._ticker_reconnection_attempts})...")
+                await asyncio.sleep(delay)
             except Exception as e:
+                self._ticker_reconnection_attempts += 1
+                delay = min(2 ** self._ticker_reconnection_attempts, self._max_reconnect_delay)
                 logger.error(f"An unexpected error occurred in ticker WebSocket for {self.symbol}: {e}", exc_info=True)
-                logger.info("Reconnecting in 10s...")
-                await asyncio.sleep(10)
+                logger.info(f"Reconnecting in {delay}s (attempt {self._ticker_reconnection_attempts})...")
+                await asyncio.sleep(delay)
 
     def _run_websocket_loop(self, coro):
         """Helper to run an async coroutine in a new event loop."""

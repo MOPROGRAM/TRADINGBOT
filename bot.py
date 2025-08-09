@@ -395,14 +395,25 @@ def run_bot_tick():
 
         # --- Fetch Data from WebSocket Cache ---
         current_price = get_current_price(exchange, SYMBOL)
+        # --- Fetch Data from WebSocket Cache ---
+        current_price = get_current_price(exchange, SYMBOL)
         candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch from WebSocket cache
         candles_15min = fetch_candles(exchange, SYMBOL, '15m', limit=200) # Fetch from WebSocket cache
         candles_trend = fetch_candles(exchange, SYMBOL, TREND_TIMEFRAME, limit=100) # Fetch from WebSocket cache
 
-        if not current_price or not candles_primary or len(candles_primary) < 50 or \
-           not candles_15min or len(candles_15min) < 200 or \
-           not candles_trend or len(candles_trend) < 50:
-            signal, signal_reason = "Data Error", "Failed to fetch price or candle data from WebSocket cache or fallback."
+        # --- Data Validation and Error Handling ---
+        # Check if current_price is None or if any candle list is empty or too short
+        if current_price is None:
+            signal, signal_reason = "Data Error", "Failed to fetch current price."
+            analysis_details = signal_reason
+        elif not candles_primary or len(candles_primary) < 50:
+            signal, signal_reason = "Data Error", f"Insufficient primary candles ({len(candles_primary)}/{50})."
+            analysis_details = signal_reason
+        elif not candles_15min or len(candles_15min) < 200:
+            signal, signal_reason = "Data Error", f"Insufficient 15-min candles ({len(candles_15min)}/{200})."
+            analysis_details = signal_reason
+        elif not candles_trend or len(candles_trend) < 50:
+            signal, signal_reason = "Data Error", f"Insufficient trend candles ({len(candles_trend)}/{50})."
             analysis_details = signal_reason
         else:
             # --- Main Logic ---
