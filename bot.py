@@ -78,7 +78,7 @@ def sync_position_with_exchange(exchange, symbol):
             entry_size = last_buy_trade['amount']
             
             if abs(base_currency_balance - entry_size) / entry_size > 0.05:
-                 logger.warning(f"Balance ({base_currency_balance}) does not match last trade size ({entry_size}). Using current balance.")
+                 logger.warning(f"Balance ({base_currency_balance}) does not match last trade size ({entry_size}). Using current current_price.")
                  entry_size = base_currency_balance
 
             state['has_position'] = True
