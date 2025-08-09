@@ -272,13 +272,13 @@ def handle_in_position(exchange, state, current_price, candles):
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 
-def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend):
+def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend):
     """
     Handles the logic when the bot is not in a position, using multi-timeframe data and signal crossing.
     Returns: signal, signal_reason, analysis_details
     """
     # Get current signal state and previous signal state
-    is_buy_signal, analysis_details = signals.check_buy_signal(candles_primary, candles_trend)
+    is_buy_signal, analysis_details = signals.check_buy_signal(candles_primary, candles_15min, candles_trend)
     previous_buy_signal = state.get('previous_buy_signal', False)
 
     # Update the state with the current signal for the next tick
@@ -376,13 +376,13 @@ def run_bot_tick():
         # --- Fetch Data from WebSocket Cache ---
         current_price = get_current_price(exchange, SYMBOL)
         candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch more for trend analysis
-        # For the trend timeframe, we might still need a REST call if not watched by websocket,
-        # or we can derive it from the primary candles if the library supports it.
-        # For simplicity, we'll continue to fetch it via REST for now.
+        candles_15min = exchange.fetch_ohlcv(SYMBOL, '15m', limit=200) # Fetch 15-min candles for EMA 200
         candles_trend = exchange.fetch_ohlcv(SYMBOL, TREND_TIMEFRAME, limit=100)
 
-        if not current_price or not candles_primary or len(candles_primary) < 50 or not candles_trend or len(candles_trend) < 50:
-            signal, signal_reason = "Data Error", "Failed to fetch price or candle data for one or both timeframes."
+        if not current_price or not candles_primary or len(candles_primary) < 50 or \
+           not candles_15min or len(candles_15min) < 200 or \
+           not candles_trend or len(candles_trend) < 50:
+            signal, signal_reason = "Data Error", "Failed to fetch price or candle data for one or more timeframes."
             analysis_details = signal_reason
         else:
             # --- Main Logic ---
@@ -401,7 +401,7 @@ def run_bot_tick():
                     return # Bot tick is done for now
             else:
                 # Pass the state to handle_no_position
-                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend)
+                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend)
                 # If a buy signal was generated, update the buy signal time
                 if signal == "Buy": # Assuming "Buy" is the signal when a buy trade occurs
                     last_buy_signal_time = datetime.now().isoformat()
@@ -418,7 +418,7 @@ def run_bot_tick():
             if time_since_signal > timedelta(minutes=SIGNAL_EXPIRATION_MINUTES):
                 logger.info(f"Pending BUY signal expired. Time since signal: {time_since_signal.total_seconds()/60:.1f} mins.")
                 # Re-evaluate current buy conditions
-                re_evaluate_buy, re_eval_details = signals.check_buy_signal(candles_primary, candles_trend)
+                re_evaluate_buy, re_eval_details = signals.check_buy_signal(candles_primary, candles_15min, candles_trend)
                 if re_evaluate_buy:
                     logger.info("Expired BUY signal still valid. Attempting re-entry.")
                     # Attempt to buy again (logic from handle_no_position)

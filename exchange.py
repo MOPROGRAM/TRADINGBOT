@@ -81,11 +81,7 @@ def get_account_balance(exchange):
         }
     try:
         balance = exchange.fetch_balance()
-        return {
-            asset: data
-            for asset, data in balance['total'].items()
-            if data > 0
-        }
+        return balance['total'] # Return the 'total' balances directly, which is a dict of asset:amount
     except ccxt.BaseError as e:
         logger.error(f"Error fetching account balance: {e}")
         return {}

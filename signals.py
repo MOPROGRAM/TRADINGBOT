@@ -49,10 +49,11 @@ def calculate_atr(candles, period=ATR_PERIOD):
     
     return atr.iloc[-1]
 
-def check_buy_signal(candles_primary, candles_trend):
+def check_buy_signal(candles_primary, candles_15min, candles_trend):
     """
     Checks for buy signal using Multi-Timeframe Analysis.
-    Primary candles are for entry signals, trend candles are for trend confirmation.
+    Primary candles are for entry signals (5-min), candles_15min for 15-min trend,
+    and candles_trend for 1-hour trend confirmation.
     """
     # --- Data Validation ---
     def is_valid_candle(c):
@@ -62,25 +63,31 @@ def check_buy_signal(candles_primary, candles_trend):
     if not all(is_valid_candle(c) for c in candles_primary):
         logger.warning("Malformed or incomplete primary candle data received. Skipping signal check.")
         return False, "Malformed primary candle data"
+    if not all(is_valid_candle(c) for c in candles_15min):
+        logger.warning("Malformed or incomplete 15-min candle data received. Skipping signal check.")
+        return False, "Malformed 15-min candle data"
     if not all(is_valid_candle(c) for c in candles_trend):
         logger.warning("Malformed or incomplete trend candle data received. Skipping signal check.")
         return False, "Malformed trend candle data"
     # --- End Validation ---
 
-    if len(candles_primary) < 50 or len(candles_trend) < 50:
+    # Minimum candles needed for all calculations (e.g., EMA 200, EMA 50, RSI 7, SMA 20)
+    # EMA 200 needs at least 200 candles.
+    if len(candles_primary) < 50 or len(candles_15min) < 200 or len(candles_trend) < 50:
         return False, "Not enough candle data for full analysis."
 
     # --- Robust Data Cleaning ---
     df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df_15min = pd.DataFrame(candles_15min, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
     
-    for df in [df_primary, df_trend]:
+    for df in [df_primary, df_15min, df_trend]:
         for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df.dropna(inplace=True)
 
     # Re-check length after cleaning
-    if len(df_primary) < 50 or len(df_trend) < 50:
+    if len(df_primary) < 50 or len(df_15min) < 200 or len(df_trend) < 50:
         return False, "Not enough valid candle data after cleaning."
     
     # --- 1. Pre-filter: Exclude very low volatility markets on primary timeframe ---
@@ -95,38 +102,54 @@ def check_buy_signal(candles_primary, candles_trend):
 
     # --- 2. Strategy Conditions ---
     # Calculate all indicators first
-    long_ema_trend = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
-    volume_sma = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
-    rsi = ta.rsi(df_primary['close'], length=14)
+    # Condition 1: General Trend Filter (EMA 200 on 15-minute timeframe)
+    ema_200_15min = ta.ema(df_15min['close'], length=200)
+    
+    # Condition 2: Momentary Trend (EMA 20 > EMA 50 on 5-minute timeframe)
+    ema_20_5min = ta.ema(df_primary['close'], length=20)
+    ema_50_5min = ta.ema(df_primary['close'], length=50)
+
+    # Condition 3: RSI (Period 7 > 55 on 5-minute timeframe)
+    rsi_7_5min = ta.rsi(df_primary['close'], length=7)
+    
+    # Condition 4: Volume (Current Volume >= SMA(20) on 5-minute timeframe)
+    volume_sma_20_5min = df_primary['volume'].rolling(window=VOLUME_SMA_PERIOD).mean().iloc[-1]
     
     # --- Validate Indicators ---
-    if long_ema_trend is None or long_ema_trend.empty or pd.isna(long_ema_trend.iloc[-1]):
-        return False, "Could not calculate trend EMA."
-    if pd.isna(volume_sma):
-        return False, "Could not calculate volume SMA."
-    if rsi is None or rsi.empty or pd.isna(rsi.iloc[-1]):
-        return False, "Could not calculate RSI."
+    if ema_200_15min is None or ema_200_15min.empty or pd.isna(ema_200_15min.iloc[-1]):
+        return False, "Could not calculate EMA 200 (15min)."
+    if ema_20_5min is None or ema_20_5min.empty or pd.isna(ema_20_5min.iloc[-1]):
+        return False, "Could not calculate EMA 20 (5min)."
+    if ema_50_5min is None or ema_50_5min.empty or pd.isna(ema_50_5min.iloc[-1]):
+        return False, "Could not calculate EMA 50 (5min)."
+    if rsi_7_5min is None or rsi_7_5min.empty or pd.isna(rsi_7_5min.iloc[-1]):
+        return False, "Could not calculate RSI 7 (5min)."
+    if pd.isna(volume_sma_20_5min):
+        return False, "Could not calculate Volume SMA 20 (5min)."
     
     # --- Apply Strategy Conditions ---
-    # Condition 1: Current price on 5m frame > EMA(50) on 1h frame (Uptrend)
-    trend_ok = df_primary['close'].iloc[-1] > long_ema_trend.iloc[-1]
+    # Condition 1: General Trend Filter
+    general_trend_ok = df_primary['close'].iloc[-1] > ema_200_15min.iloc[-1]
 
-    # Condition 2: RSI between 55 and 70 (Positive momentum without overbought)
-    latest_rsi = rsi.iloc[-1]
-    rsi_ok = latest_rsi > 50 # Changed from 55 < RSI < 70 to RSI > 50 for more flexibility
+    # Condition 2: Momentary Trend
+    momentary_trend_ok = ema_20_5min.iloc[-1] > ema_50_5min.iloc[-1]
 
-    # Condition 3: Current trading volume >= 50% of SMA(20) of trading volume (adjusted from 80%)
+    # Condition 3: RSI
+    rsi_ok = rsi_7_5min.iloc[-1] > 55
+
+    # Condition 4: Volume
     latest_volume = df_primary['volume'].iloc[-1]
-    volume_ok = latest_volume >= (volume_sma * 0.5) # Adjusted from 0.8 to 0.5 for more flexibility
+    volume_ok = latest_volume >= volume_sma_20_5min
     
     # --- 3. Final Decision & Reason ---
-    all_conditions_met = trend_ok and rsi_ok and volume_ok # Removed AI buy signal dependency
+    all_conditions_met = general_trend_ok and momentary_trend_ok and rsi_ok and volume_ok
     
     # Build the reason string for the UI, using a specific separator for easy parsing
     reasons = [
-        f"Price > Trend EMA ({TREND_EMA_PERIOD}h):{'✅' if trend_ok else '❌'}",
-        f"RSI > 50:{'✅' if rsi_ok else '❌'}",
-        f"Volume >= 50% SMA ({VOLUME_SMA_PERIOD}):{'✅' if volume_ok else '❌'}"
+        f"Price > EMA 200 (15m):{'✅' if general_trend_ok else '❌'}",
+        f"EMA 20 > EMA 50 (5m):{'✅' if momentary_trend_ok else '❌'}",
+        f"RSI (7) > 55 (5m):{'✅' if rsi_ok else '❌'}",
+        f"Volume >= SMA ({VOLUME_SMA_PERIOD}) (5m):{'✅' if volume_ok else '❌'}"
     ]
     reason_str = " | ".join(reasons)
 
