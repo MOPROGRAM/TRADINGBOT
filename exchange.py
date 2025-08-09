@@ -117,12 +117,14 @@ def get_account_balance(exchange):
             base_currency: {"free": 0.0, "used": 0.0, "total": 0.0} # Start with no base currency
         }
     try:
+        # Fetch the full balance details
         balance_data = exchange.fetch_balance()
-        # Ensure balance_data['total'] is a dictionary before returning
-        if isinstance(balance_data.get('total'), dict):
-            return balance_data['total'] # Return the 'total' balances directly, which is a dict of asset:amount
+        # Return the 'free' part of the balance, which is a dictionary of currencies to their available amounts.
+        # This is more reliable than 'total' for trading decisions.
+        if isinstance(balance_data, dict) and 'free' in balance_data:
+            return balance_data['free']
         else:
-            logger.error(f"fetch_balance returned unexpected type for 'total': {type(balance_data.get('total'))}. Returning empty dict.")
+            logger.error(f"fetch_balance returned unexpected data structure: {balance_data}. Returning empty dict.")
             return {}
     except ccxt.BaseError as e:
         logger.error(f"Error fetching account balance: {e}")
