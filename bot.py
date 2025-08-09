@@ -75,7 +75,13 @@ def sync_position_with_exchange(exchange, symbol):
         return
 
     balance = get_account_balance(exchange)
+    # Ensure balance is a dictionary before proceeding
+    if not isinstance(balance, dict):
+        logger.error(f"get_account_balance returned a non-dictionary type: {type(balance)}. Resetting to empty dict.")
+        balance = {} # Reset to empty dict to prevent AttributeError
+
     base_currency = symbol.split('/')[0]
+    # Access 'free' balance within the dictionary structure
     base_currency_balance = balance.get(base_currency, {}).get('free', 0)
     min_position_amount = 1 
 
