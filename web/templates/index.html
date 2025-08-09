@@ -66,11 +66,10 @@
                     <h2 class="text-xl font-semibold mb-2">Live Signal & Candles</h2>
                     <div class="flex items-center space-x-2 mb-1">
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
-                        <span class="text-lg" x-text="signal + (signalReason && signalReason !== 'N/A' ? ' (' + signalReason + ')' : '')"></span>
+                        <span class="text-lg" x-text="signal"></span>
                     </div>
-                    <!-- Removed separate signalReason paragraph as it's now combined with signal -->
                     
-                    <!-- New Analysis Details Block -->
+                    <!-- Analysis Details Block - now always visible and directly below the signal -->
                     <div class="bg-gray-900/50 p-2 rounded-md mb-3">
                         <h3 class="text-sm font-semibold text-gray-300 mb-1">Signal Analysis Breakdown:</h3>
                         <div class="flex flex-wrap gap-2 mt-2">
@@ -84,6 +83,7 @@
                                 </div>
                             </template>
                         </div>
+                        <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
                     </div>
                     
                     <h3 class="text-md font-semibold mb-1">Candles Used for Calculation:</h3>
