@@ -520,7 +520,6 @@ bot.py
 web/templates/index.html
 
 # Current Time
-09/08/2025, 11:57:40 am (Asia/Riyadh, UTC+3:00)
 
 # Context Window Usage
 263,291 / 1,048.576K tokens used (25%)
