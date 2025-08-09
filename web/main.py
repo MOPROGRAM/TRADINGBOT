@@ -220,12 +220,25 @@ def get_status():
                             # Or, for safety, skip this currency from total_balance_usdt if conversion fails
                             pass # Skipping for now to avoid inflating total with unconvertible assets
 
+        # --- Filter balance to show only non-zero balances ---
+        filtered_balance = {}
+        for currency, data in balance.items():
+            amount = 0.0
+            if isinstance(data, dict):
+                amount = data.get('free', 0.0) # Prefer 'free' balance
+            else:
+                amount = data # If it's just a number
+
+            # Only include if amount is greater than a very small epsilon
+            if amount > 0.00000001: # Use a small threshold to filter out dust
+                filtered_balance[currency] = amount # Store just the amount for simplicity in UI
+
         # --- Get AI Model Info ---
         # --- Update Cache ---
         fresh_data = {
             "symbol": SYMBOL,
             "current_price": current_price,
-            "balance": balance,
+            "balance": filtered_balance, # Use the filtered balance
             "total_balance_usdt": total_balance_usdt, # Add total balance in USDT
             "position": state.get('position', {}),
             "has_position": state.get('has_position', False),
