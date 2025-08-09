@@ -20,11 +20,16 @@ class BinanceWebSocketClient:
         self.websocket_threads = []
         self.running = False
         self.initialized = threading.Event() # Event to signal when the first ticker is received
+        self.kline_initialized = {interval: threading.Event() for interval in kline_intervals} # Event for each kline interval
         
         # New: Reconnection attempt counters and max delays
         self._kline_reconnection_attempts = {interval: 0 for interval in kline_intervals}
         self._ticker_reconnection_attempts = 0
         self._max_reconnect_delay = 60 # Max delay in seconds
+        self.connection_status = {
+            "ticker": "disconnected",
+            **{interval: "disconnected" for interval in kline_intervals}
+        }
 
     async def _connect_kline_websocket(self, interval: str):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@kline_{interval}"
@@ -33,6 +38,7 @@ class BinanceWebSocketClient:
             try:
                 async with websockets.connect(uri) as websocket:
                     logger.info(f"Connected to kline WebSocket for {self.symbol}@{interval}")
+                    self.connection_status[interval] = "connected"
                     self._kline_reconnection_attempts[interval] = 0 # Reset on successful connection
                     while self.running:
                         message = await websocket.recv()
@@ -50,22 +56,32 @@ class BinanceWebSocketClient:
                                 ]
                                 with self.lock:
                                     self.kline_data[interval].append(candle)
+                                    if not self.kline_initialized[interval].is_set():
+                                        self.kline_initialized[interval].set()
+                                        logger.info(f"Initial {interval} kline data received and cached.")
                                     # logger.debug(f"Received {interval} kline: {candle[0]} - {candle[4]}")
                             else:
                                 logger.warning(f"Incomplete kline data received for {self.symbol}@{interval}: {kline}")
                         else:
                             logger.warning(f"Unexpected message format for kline {self.symbol}@{interval}: {data}")
             except websockets.exceptions.ConnectionClosed as e:
+                self.connection_status[interval] = "disconnected"
                 self._kline_reconnection_attempts[interval] += 1
                 delay = min(2 ** self._kline_reconnection_attempts[interval], self._max_reconnect_delay)
                 logger.warning(f"Kline WebSocket for {self.symbol}@{interval} closed ({e}). Reconnecting in {delay}s (attempt {self._kline_reconnection_attempts[interval]})...")
                 await asyncio.sleep(delay)
             except Exception as e:
+                self.connection_status[interval] = "disconnected"
                 self._kline_reconnection_attempts[interval] += 1
                 delay = min(2 ** self._kline_reconnection_attempts[interval], self._max_reconnect_delay)
                 logger.error(f"An unexpected error occurred in kline WebSocket for {self.symbol}@{interval}: {e}", exc_info=True)
                 logger.info(f"Reconnecting in {delay}s (attempt {self._kline_reconnection_attempts[interval]})...")
                 await asyncio.sleep(delay)
+            finally:
+                if self.running: # Only update status if still intended to be running
+                    self.connection_status[interval] = "connecting"
+                else:
+                    self.connection_status[interval] = "stopped"
 
     async def _connect_ticker_websocket(self):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@ticker"
@@ -74,6 +90,7 @@ class BinanceWebSocketClient:
             try:
                 async with websockets.connect(uri) as websocket:
                     logger.info(f"Connected to ticker WebSocket for {self.symbol}")
+                    self.connection_status["ticker"] = "connected"
                     self._ticker_reconnection_attempts = 0 # Reset on successful connection
                     while self.running:
                         message = await websocket.recv()
@@ -84,20 +101,28 @@ class BinanceWebSocketClient:
                                 self.ticker_data['timestamp'] = data['E'] # Event time
                                 if not self.initialized.is_set():
                                     self.initialized.set() # Signal that we have received the first ticker
+                                    logger.info("Initial ticker data received.")
                                 # logger.debug(f"Received ticker: {self.ticker_data['last_price']}")
                         else:
                             logger.warning(f"Incomplete ticker data received for {self.symbol}: {data}")
             except websockets.exceptions.ConnectionClosed as e:
+                self.connection_status["ticker"] = "disconnected"
                 self._ticker_reconnection_attempts += 1
                 delay = min(2 ** self._ticker_reconnection_attempts, self._max_reconnect_delay)
                 logger.warning(f"Ticker WebSocket for {self.symbol} closed ({e}). Reconnecting in {delay}s (attempt {self._ticker_reconnection_attempts})...")
                 await asyncio.sleep(delay)
             except Exception as e:
+                self.connection_status["ticker"] = "disconnected"
                 self._ticker_reconnection_attempts += 1
                 delay = min(2 ** self._ticker_reconnection_attempts, self._max_reconnect_delay)
                 logger.error(f"An unexpected error occurred in ticker WebSocket for {self.symbol}: {e}", exc_info=True)
                 logger.info(f"Reconnecting in {delay}s (attempt {self._ticker_reconnection_attempts})...")
                 await asyncio.sleep(delay)
+            finally:
+                if self.running: # Only update status if still intended to be running
+                    self.connection_status["ticker"] = "connecting"
+                else:
+                    self.connection_status["ticker"] = "stopped"
 
     def _run_websocket_loop(self, coro):
         """Helper to run an async coroutine in a new event loop."""
@@ -144,6 +169,24 @@ class BinanceWebSocketClient:
         self.websocket_threads = [] # Clear references
         logger.info("Binance WebSocket client stopped.")
 
+    async def wait_for_all_kline_data(self, timeout: int = 60):
+        """Waits until initial kline data for all specified intervals has been received."""
+        logger.info(f"Waiting for initial kline data for intervals: {self.kline_intervals} (timeout: {timeout}s)")
+        start_time = time.time()
+        while self.running and (time.time() - start_time < timeout or timeout == 0):
+            all_ready = True
+            for interval in self.kline_intervals:
+                if not self.kline_initialized[interval].is_set():
+                    all_ready = False
+                    logger.info(f"Still waiting for {interval} kline data...")
+                    break
+            if all_ready:
+                logger.info("All required kline data intervals initialized.")
+                return True
+            await asyncio.sleep(1) # Check every second
+        logger.warning(f"Timeout waiting for all kline data to initialize after {timeout} seconds.")
+        return False
+
     def get_kline_data(self, interval: str) -> list:
         with self.lock:
             return list(self.kline_data.get(interval, []))
@@ -155,6 +198,10 @@ class BinanceWebSocketClient:
     def get_all_kline_data(self) -> dict:
         with self.lock:
             return {interval: list(data) for interval, data in self.kline_data.items()}
+
+    def get_connection_status(self) -> dict:
+        """Returns the current connection status for all streams."""
+        return self.connection_status
 
 # Example Usage (for testing)
 if __name__ == "__main__":

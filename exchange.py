@@ -56,41 +56,20 @@ def fetch_candles(exchange, symbol, timeframe, limit=100):
     Returns the latest candles, primarily from WebSocket cache, with REST API fallback.
     """
     candles = websocket_client.get_kline_data(timeframe)
-    if candles: # Use WebSocket cache if any data is available
-        # logger.debug(f"Fetched {len(candles)} {timeframe} candles from WebSocket cache.")
-        # Return the last 'limit' candles if available, otherwise all available candles
-        return list(candles)[-limit:] if len(candles) >= limit else list(candles)
-    
-    logger.warning(f"WebSocket cache for {timeframe} candles is empty. Falling back to REST API.")
-    try:
-        # Fallback to REST API if WebSocket cache is not ready or insufficient
-        rest_candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        if rest_candles:
-            # Optionally, update the cache with these candles if needed, but WebSocket should fill it.
-            # For now, just return them.
-            return rest_candles
+    if not candles:
+        logger.warning(f"WebSocket cache for {timeframe} candles is empty. No data available.")
         return []
-    except Exception as e:
-        logger.error(f"Failed to fetch_ohlcv from REST API (fallback): {e}")
-        return []
+    # Return the last 'limit' candles if available, otherwise all available candles
+    return list(candles)[-limit:] if len(candles) >= limit else list(candles)
 
 def get_current_price(exchange, symbol):
     """
     Returns the latest price, primarily from WebSocket cache, with REST API fallback.
     """
     price = websocket_client.get_latest_price()
-    if price is not None:
-        # logger.debug(f"Fetched latest price {price} from WebSocket cache.")
-        return price
-    
-    logger.warning("WebSocket cache for latest price is empty. Falling back to REST API.")
-    try:
-        # Fallback to REST API if WebSocket cache is not ready
-        ticker = exchange.fetch_ticker(symbol)
-        return ticker['last']
-    except Exception as e:
-        logger.error(f"Failed to fetch_ticker from REST API (fallback): {e}")
-        return None
+    if price is None:
+        logger.warning("WebSocket cache for latest price is empty. No price available.")
+    return price
 
 def create_market_buy_order(exchange, symbol, amount_usdt):
     if DRY_RUN:

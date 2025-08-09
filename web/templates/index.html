@@ -11,12 +11,9 @@
 <body class="bg-gray-900 text-white font-sans" x-data="botDashboard()" x-init="init()">
     <div class="container mx-auto p-4">
         
-        <!-- Main Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <!-- Left Column: Data Panels -->
             <div class="lg:col-span-1 space-y-6">
-                <!-- Status & Price Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
                     <h2 class="text-2xl font-bold mb-2" x-text="symbol"></h2>
                     <p class="text-4xl font-mono mb-2" x-text="currentPrice"></p>
@@ -26,17 +23,26 @@
                     </div>
                 </div>
 
-                <!-- Status Messages Card -->
-                <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="statusMessages.length > 0">
-                    <h2 class="text-xl font-semibold mb-2">System Messages</h2>
-                    <div class="space-y-2">
-                        <template x-for="(msg, index) in statusMessages" :key="index">
-                            <div class="p-2 bg-blue-900/50 rounded-lg text-sm" x-html="msg"></div>
+                <div class="bg-gray-800 p-4 rounded-lg shadow">
+                    <h2 class="text-xl font-semibold mb-2">WebSocket Connections</h2>
+                    <div class="space-y-2 text-sm">
+                        <template x-for="(status, stream) in connectionStatus" :key="stream">
+                            <div class="flex justify-between items-center">
+                                <span class="capitalize" x-text="stream"></span>
+                                <span class="px-2 py-1 rounded-full text-xs font-bold"
+                                      :class="{
+                                          'bg-green-500 text-green-900': status === 'connected',
+                                          'bg-yellow-500 text-yellow-900': status === 'connecting',
+                                          'bg-red-500 text-red-900': status === 'disconnected',
+                                          'bg-gray-500 text-gray-900': status === 'stopped'
+                                      }"
+                                      x-text="status">
+                                </span>
+                            </div>
                         </template>
                     </div>
                 </div>
 
-                <!-- Account Balance Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
                     <h2 class="text-xl font-semibold mb-2">Account Balance</h2>
                     <div class="space-y-2" x-show="Object.keys(balance).length > 0">
@@ -50,7 +56,6 @@
                      <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
-                <!-- Position Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
                     <h2 class="text-xl font-semibold mb-2">Open Position</h2>
                     <div class="space-y-1">
@@ -61,15 +66,13 @@
                     </div>
                 </div>
 
-                <!-- Signal Analysis Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Live Signal & Candles</h2>
+                    <h2 class="text-xl font-semibold mb-2">Live Signal & Analysis</h2>
                     <div class="flex items-center space-x-2 mb-1">
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
                         <span class="text-lg" x-text="signal + (signalReason && signalReason !== 'N/A' ? ' (' + signalReason + ')' : '')"></span>
                     </div>
                     
-                    <!-- Analysis Details Block - now always visible and directly below the signal -->
                     <div class="bg-gray-900/50 p-2 rounded-md mb-3">
                         <h3 class="text-sm font-semibold text-gray-300 mb-1">Signal Analysis Breakdown:</h3>
                         <div class="flex flex-wrap gap-2 mt-2">
@@ -85,38 +88,8 @@
                         </div>
                         <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
                     </div>
-                    
-                    <h3 class="text-md font-semibold mb-1">Candles Used for Calculation:</h3>
-                    <div class="max-h-48 overflow-y-auto text-xs font-mono">
-                        <table class="w-full text-left">
-                            <thead class="sticky top-0 bg-gray-700 text-gray-300">
-                                <tr>
-                                    <th class="px-2 py-1">Time</th>
-                                    <th class="px-2 py-1">O</th>
-                                    <th class="px-2 py-1">H</th>
-                                    <th class="px-2 py-1">L</th>
-                                    <th class="px-2 py-1">C</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <template x-for="(candle, index) in live_candles" :key="index">
-                                    <tr class="border-b border-gray-700/50">
-                                        <td class="px-2 py-1" x-text="new Date(candle[0]).toLocaleTimeString()"></td>
-                                        <td class="px-2 py-1" x-text="candle[1]"></td>
-                                        <td class="px-2 py-1" x-text="candle[2]"></td>
-                                        <td class="px-2 py-1" x-text="candle[3]"></td>
-                                        <td class="px-2 py-1" x-text="candle[4]"></td>
-                                    </tr>
-                                </template>
-                                <tr x-show="live_candles.length === 0">
-                                    <td colspan="5" class="text-center py-2">Candle data not available yet.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
 
-                <!-- Trade History Card -->
                 <div class="bg-gray-800 p-4 rounded-lg shadow">
                     <h2 class="text-xl font-semibold mb-2">Trade History</h2>
                     <div class="flex justify-between items-center mb-2">
@@ -128,8 +101,8 @@
                             <thead class="text-xs text-gray-400 uppercase bg-gray-700">
                                 <tr>
                                     <th scope="col" class="px-2 py-2">Time</th>
-                                    <th scope="col" class="px-2 py-2">Entry Price</th>
-                                    <th scope="col" class="px-2 py-2">Exit Price</th>
+                                    <th scope="col" class="px-2 py-2">Entry</th>
+                                    <th scope="col" class="px-2 py-2">Exit</th>
                                     <th scope="col" class="px-2 py-2">Size</th>
                                     <th scope="col" class="px-2 py-2">PnL %</th>
                                     <th scope="col" class="px-2 py-2">Status</th>
@@ -139,10 +112,10 @@
                             <tbody>
                                 <template x-for="trade in tradeHistory" :key="trade.timestamp">
                                     <tr class="border-b border-gray-700">
-                                        <td class="px-2 py-2 text-xs" x-text="new Date(trade.timestamp).toLocaleString()"></td>
-                                        <td class="px-2 py-2 font-mono" x-text="parseFloat(trade.entry_price).toFixed(4)"></td>
+                                        <td class="px-2 py-2 text-xs" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></td>
+                                        <td class="px-2 py-2 font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></td>
                                         <td class="px-2 py-2 font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></td>
-                                        <td class="px-2 py-2 font-mono" x-text="parseFloat(trade.size).toFixed(6)"></td>
+                                        <td class="px-2 py-2 font-mono" x-text="trade.size ? parseFloat(trade.size).toFixed(6) : 'N/A'"></td>
                                         <td class="px-2 py-2" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></td>
                                         <td class="px-2 py-2">
                                             <span x-text="trade.is_open ? 'Open' : 'Closed'" :class="trade.is_open ? 'text-yellow-400' : 'text-gray-400'"></span>
@@ -159,7 +132,6 @@
                 </div>
             </div>
 
-            <!-- Right Column: Chart -->
             <div class="lg:col-span-2 bg-gray-800 p-4 rounded-lg shadow min-h-[600px]">
                 <div class="tradingview-widget-container" style="height:100%;width:100%">
                   <div id="tradingview_chart" style="height:100%;width:100%"></div>
@@ -185,21 +157,17 @@
                 signal: 'Initializing...',
                 signalReason: 'Waiting for data...',
                 analysisDetails: 'Waiting for data...',
-                strategy_params: {},
-                live_candles: [],
-                statusMessages: [],
-                lastModified: null,
-                ai_model_last_trained: 'N/A',
+                connectionStatus: {},
                 init() {
-                    this.loadDashboardData(); // Load data via REST API
+                    this.loadDashboardData();
                     this.loadTradingViewChart();
-                    // Refresh data periodically
-                    setInterval(() => this.loadDashboardData(), 10000); // Every 10 seconds
+                    setInterval(() => this.loadDashboardData(), 2000); // Refresh every 2 seconds
                 },
 
                 async loadDashboardData() {
                     try {
                         const response = await fetch('/api/status');
+                        if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
                         const data = await response.json();
                         this.updateDashboard(data);
                     } catch (error) {
@@ -225,17 +193,7 @@
                     this.signal = data.signal || 'Waiting...';
                     this.signalReason = data.signal_reason || 'N/A';
                     this.analysisDetails = data.analysis_details || 'N/A';
-                    this.strategy_params = data.strategy_params || {};
-                    this.live_candles = data.live_candles || [];
-                    this.statusMessages = data.status_messages || [];
-                    this.ai_model_last_trained = data.ai_model_last_trained || 'N/A';
-
-                    // Check if the state has been significantly changed by the bot
-                    if (this.lastModified && this.lastModified !== data.last_modified) {
-                        // A sell or a buy just happened. Clear messages after a delay.
-                        setTimeout(() => { this.statusMessages = [] }, 5000);
-                    }
-                    this.lastModified = data.last_modified;
+                    this.connectionStatus = data.connection_status || {};
 
                     if (this.hasPosition) {
                         this.position = {
@@ -243,7 +201,7 @@
                             size: data.position.size ? parseFloat(data.position.size).toFixed(6) : 'N/A',
                             timestamp: data.position.timestamp ? new Date(data.position.timestamp).toLocaleString() : 'N/A',
                         };
-                        this.pnl = data.pnl.toFixed(2) + '%';
+                        this.pnl = data.pnl ? data.pnl.toFixed(2) + '%' : '0.00%';
                         this.statusIcon = '🟢';
                         this.statusText = 'Position Open';
                     } else {
