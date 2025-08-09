@@ -61,3 +61,101 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
         # Also checks for None values in the numeric parts.
         return isinstance(c, list) and len(c) == 6 and \
                all(isinstance(val, (int, float)) and val is not None for val in c[1:])
+
+def check_sell_signal(candles):
+    """
+    Checks for a sell signal based on RSI, EMA crossover, and price reversal.
+    """
+    analysis_details = []
+
+    if not candles or len(candles) < max(EXIT_EMA_PERIOD_LONG, TREND_EMA_PERIOD, ATR_PERIOD, 100):
+        reason = f"Insufficient candles ({len(candles)}) for sell signal analysis."
+        logger.warning(reason)
+        return False, reason
+
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    for col in ['high', 'low', 'close']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df.dropna(subset=['high', 'low', 'close'], inplace=True)
+
+    if len(df) < max(EXIT_EMA_PERIOD_LONG, TREND_EMA_PERIOD, ATR_PERIOD, 100):
+        reason = f"Insufficient valid candles ({len(df)}) after cleaning for sell signal analysis."
+        logger.warning(reason)
+        return False, reason
+
+    # Calculate Indicators
+    df['rsi'] = ta.rsi(df['close'], length=14)
+    df['ema_short'] = ta.ema(df['close'], length=EXIT_EMA_PERIOD_SHORT)
+    df['ema_long'] = ta.ema(df['close'], length=EXIT_EMA_PERIOD_LONG)
+    df['ema_trend'] = ta.ema(df['close'], length=TREND_EMA_PERIOD)
+
+    last_close = df['close'].iloc[-1]
+    last_rsi = df['rsi'].iloc[-1]
+    last_ema_short = df['ema_short'].iloc[-1]
+    last_ema_long = df['ema_long'].iloc[-1]
+    last_ema_trend = df['ema_trend'].iloc[-1]
+
+    prev_ema_short = df['ema_short'].iloc[-2]
+    prev_ema_long = df['ema_long'].iloc[-2]
+
+    sell_signal_triggered = False
+
+    # Condition 1: RSI overbought exit
+    if last_rsi > EXIT_RSI_LEVEL:
+        sell_signal_triggered = True
+        analysis_details.append(f"RSI ({last_rsi:.2f}) > Exit Level ({EXIT_RSI_LEVEL})")
+
+    # Condition 2: EMA Crossover (short EMA crosses below long EMA)
+    if prev_ema_short > prev_ema_long and last_ema_short < last_ema_long:
+        sell_signal_triggered = True
+        analysis_details.append(f"EMA Short ({last_ema_short:.4f}) crossed below EMA Long ({last_ema_long:.4f})")
+
+    # Condition 3: Price below Trend EMA (confirmation of downtrend)
+    if last_close < last_ema_trend:
+        if not sell_signal_triggered: # Only add if not already triggered by other conditions
+            sell_signal_triggered = True
+            analysis_details.append(f"Price ({last_close:.4f}) is below Trend EMA ({last_ema_trend:.4f})")
+        else:
+            analysis_details.append(f"Confirmed by Price ({last_close:.4f}) below Trend EMA ({last_ema_trend:.4f})")
+
+    # Condition 4: Reversal Drop from recent high
+    # Look back a reasonable period for a recent high (e.g., 20 candles)
+    lookback_period = 20
+    if len(df) >= lookback_period:
+        recent_high = df['high'].iloc[-lookback_period:-1].max()
+        if recent_high and last_close < recent_high * (1 - REVERSAL_DROP_PERCENTAGE):
+            sell_signal_triggered = True
+            analysis_details.append(f"Price dropped {REVERSAL_DROP_PERCENTAGE*100:.1f}% from recent high ({recent_high:.4f})")
+
+    if sell_signal_triggered:
+        return True, " | ".join(analysis_details)
+    else:
+        return False, "No sell signal."
+
+def check_sl_tp(current_price, state, sl_price, tp_price, trailing_sl_price, trailing_tp_activation_price):
+    """
+    Checks if Stop Loss (SL), Take Profit (TP), or Trailing Stop Loss (TSL) conditions are met.
+    """
+    if not state.get('has_position'):
+        return None, "No position to check SL/TP."
+
+    entry_price = state['position'].get('entry_price')
+    if entry_price is None:
+        return None, "Entry price not set in state."
+
+    # Check Trailing Stop Loss first (if activated)
+    if trailing_sl_price is not None and current_price <= trailing_sl_price:
+        logger.info(f"Trailing Stop Loss triggered: Current Price {current_price:.4f} <= Trailing SL {trailing_sl_price:.4f}")
+        return "TTP", "Trailing Stop Loss triggered."
+
+    # Check Stop Loss
+    if sl_price is not None and current_price <= sl_price:
+        logger.info(f"Stop Loss triggered: Current Price {current_price:.4f} <= SL {sl_price:.4f}")
+        return "SL", "Stop Loss triggered."
+
+    # Check Take Profit
+    if tp_price is not None and current_price >= tp_price:
+        logger.info(f"Take Profit triggered: Current Price {current_price:.4f} >= TP {tp_price:.4f}")
+        return "TP", "Take Profit triggered."
+
+    return None, "No SL/TP/TSL triggered."
