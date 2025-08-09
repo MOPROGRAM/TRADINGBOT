@@ -5,12 +5,18 @@ from datetime import datetime, timedelta
 import ccxt # Import ccxt to catch its exceptions
 
 from logger import get_logger
-from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
+from exchange import (
+    get_exchange, fetch_candles, get_current_price, 
+    create_market_buy_order, create_market_sell_order, 
+    get_account_balance, fetch_last_buy_trade,
+    start_websocket_client, stop_websocket_client # Import new functions
+)
 import signals
 from state import load_state, save_state, clear_state, save_trade_history, get_default_state
 from notifier import send_telegram_message
 from shared_state import strategy_params
 import tempfile
+import atexit # For graceful shutdown
 
 # Load environment variables
 load_dotenv()
@@ -51,6 +57,11 @@ def initialize_strategy_params():
     strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL # Add new RSI buy level
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT # Add minimum trade amount
     logger.info(f"Strategy parameters initialized: {strategy_params}")
+    
+    # Start WebSocket client when parameters are initialized
+    start_websocket_client()
+    # Register stop function to be called on program exit
+    atexit.register(stop_websocket_client)
 
 def sync_position_with_exchange(exchange, symbol):
     """
@@ -375,14 +386,14 @@ def run_bot_tick():
 
         # --- Fetch Data from WebSocket Cache ---
         current_price = get_current_price(exchange, SYMBOL)
-        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch more for trend analysis
-        candles_15min = exchange.fetch_ohlcv(SYMBOL, '15m', limit=200) # Fetch 15-min candles for EMA 200
-        candles_trend = exchange.fetch_ohlcv(SYMBOL, TREND_TIMEFRAME, limit=100)
+        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch from WebSocket cache
+        candles_15min = fetch_candles(exchange, SYMBOL, '15m', limit=200) # Fetch from WebSocket cache
+        candles_trend = fetch_candles(exchange, SYMBOL, TREND_TIMEFRAME, limit=100) # Fetch from WebSocket cache
 
         if not current_price or not candles_primary or len(candles_primary) < 50 or \
            not candles_15min or len(candles_15min) < 200 or \
            not candles_trend or len(candles_trend) < 50:
-            signal, signal_reason = "Data Error", "Failed to fetch price or candle data for one or more timeframes."
+            signal, signal_reason = "Data Error", "Failed to fetch price or candle data from WebSocket cache or fallback."
             analysis_details = signal_reason
         else:
             # --- Main Logic ---
@@ -490,12 +501,8 @@ def run_bot_tick():
         send_telegram_message(f"⚠️ <b>Bot Error</b>\n<code>{e}</code>")
         signal, signal_reason, analysis_details = "Error", str(e), str(e)
     finally:
-        # Ensure exchange connection is closed
-        try:
-            # No exchange.close() for synchronous ccxt
-            logger.info("Exchange connection (synchronous) does not require explicit close.")
-        except Exception as e:
-            logger.error(f"Error closing exchange connection: {e}")
+        # No explicit exchange.close() needed for synchronous ccxt, and WebSocket client is managed by atexit
+        logger.info("Exchange connection (synchronous) does not require explicit close. WebSocket client managed by atexit.")
 
         write_web_status({
             "signal": signal, 

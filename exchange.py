@@ -3,15 +3,25 @@ import ccxt
 from dotenv import load_dotenv
 from logger import get_logger
 import time
+from websocket_client import BinanceWebSocketClient # Import the new WebSocket client
 
 load_dotenv()
 logger = get_logger(__name__)
 
 API_KEY = os.getenv('BINANCE_API_KEY')
 API_SECRET = os.getenv('BINANCE_API_SECRET')
-DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
+DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true')
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
+TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # Ensure this is defined for WebSocket client
+FIFTEEN_MIN_TIMEFRAME = '15m' # Hardcode 15m for EMA 200
+
+# Initialize WebSocket client globally
+# It will be started/stopped by bot.py
+websocket_client = BinanceWebSocketClient(
+    symbol=SYMBOL,
+    kline_intervals=[TIMEFRAME, FIFTEEN_MIN_TIMEFRAME, TREND_TIMEFRAME]
+)
 
 def get_exchange():
     """Initializes the exchange object."""
@@ -27,25 +37,52 @@ def get_exchange():
         logger.info("Exchange is in SANDBOX mode.")
     return exchange
 
+def start_websocket_client():
+    """Starts the global WebSocket client."""
+    websocket_client.start()
+
+def stop_websocket_client():
+    """Stops the global WebSocket client."""
+    websocket_client.stop()
+
 def fetch_candles(exchange, symbol, timeframe, limit=100):
     """
-    Returns the latest candles from the REST API.
+    Returns the latest candles, primarily from WebSocket cache, with REST API fallback.
     """
+    candles = websocket_client.get_kline_data(timeframe)
+    if candles and len(candles) >= limit:
+        # logger.debug(f"Fetched {len(candles)} {timeframe} candles from WebSocket cache.")
+        return list(candles)[-limit:] # Return the last 'limit' candles
+    
+    logger.warning(f"WebSocket cache for {timeframe} candles is empty or insufficient. Falling back to REST API.")
     try:
-        return exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        # Fallback to REST API if WebSocket cache is not ready or insufficient
+        rest_candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        if rest_candles:
+            # Optionally, update the cache with these candles if needed, but WebSocket should fill it.
+            # For now, just return them.
+            return rest_candles
+        return []
     except Exception as e:
-        logger.error(f"Failed to fetch_ohlcv: {e}")
+        logger.error(f"Failed to fetch_ohlcv from REST API (fallback): {e}")
         return []
 
 def get_current_price(exchange, symbol):
     """
-    Returns the latest price from the REST API.
+    Returns the latest price, primarily from WebSocket cache, with REST API fallback.
     """
+    price = websocket_client.get_latest_price()
+    if price is not None:
+        # logger.debug(f"Fetched latest price {price} from WebSocket cache.")
+        return price
+    
+    logger.warning("WebSocket cache for latest price is empty. Falling back to REST API.")
     try:
+        # Fallback to REST API if WebSocket cache is not ready
         ticker = exchange.fetch_ticker(symbol)
         return ticker['last']
     except Exception as e:
-        logger.error(f"Failed to fetch_ticker: {e}")
+        logger.error(f"Failed to fetch_ticker from REST API (fallback): {e}")
         return None
 
 def create_market_buy_order(exchange, symbol, amount_usdt):
