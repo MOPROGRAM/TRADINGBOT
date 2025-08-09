@@ -149,3 +149,4 @@ This project is configured for easy deployment on [Render](https://render.com/).
 ---
 
 *Disclaimer: This bot is for educational purposes only. Trading cryptocurrencies involves significant risk. The author is not responsible for any financial losses.*
+
