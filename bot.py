@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import ccxt # Import ccxt to catch its exceptions
 
 from logger import get_logger
-from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade, start_websocket_client
+from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
 import signals
 from state import load_state, save_state, clear_state, save_trade_history, get_default_state
 from notifier import send_telegram_message
