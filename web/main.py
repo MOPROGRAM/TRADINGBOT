@@ -109,29 +109,19 @@ def get_status():
     except json.JSONDecodeError:
         logger.error("Failed to decode web_status.json.")
 
-    # --- Fetch data with individual error handling for robustness ---
-    current_price, balance, state, history = None, {}, {}, []
-
-    # live_candles is now imported directly from shared_state, so no file reading is needed.
-
-    try:
-        logger.info("API: Fetching current price...")
-        current_price = get_current_price(exchange, SYMBOL)
-    except Exception as e:
-        logger.error(f"API: Failed to get current price: {e}", exc_info=True)
-
-    try:
-        logger.info("API: Fetching account balance...")
-        balance = get_account_balance(exchange)
-    except Exception as e:
-        logger.error(f"API: Failed to get account balance: {e}", exc_info=True)
-
+    # --- Fetch data from bot_status (which is updated by bot.py) ---
+    current_price = bot_status.get("current_price")
+    balance = bot_status.get("balance", {})
+    
+    # Load state and history directly as they are not part of web_status.json
+    state = {}
     try:
         logger.info("API: Loading state...")
         state = load_state()
     except Exception as e:
         logger.error(f"API: Failed to load state: {e}", exc_info=True)
 
+    history = []
     try:
         logger.info("API: Loading trade history...")
         history = load_trade_history()

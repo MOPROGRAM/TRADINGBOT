@@ -519,7 +519,9 @@ def run_bot_tick():
             "analysis_details": analysis_details,
             "live_candles": candles_primary,
             "last_buy_signal_time": last_buy_signal_time, # Add to web status
-            "last_sell_signal_time": last_sell_signal_time # Add to web status
+            "last_sell_signal_time": last_sell_signal_time, # Add to web status
+            "current_price": current_price, # Add current price to web status
+            "balance": balance # Add balance to web status
         })
 
 # Initialize parameters on startup
