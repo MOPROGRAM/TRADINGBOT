@@ -44,14 +44,13 @@ class BinanceWebSocketClient:
                             with self.lock:
                                 self.kline_data[interval].append(candle)
                                 # logger.debug(f"Received {interval} kline: {candle[0]} - {candle[4]}")
-            except websockets.exceptions.ConnectionClosedOK:
-                logger.warning(f"Kline WebSocket for {self.symbol}@{interval} closed normally. Reconnecting...")
-            except websockets.exceptions.ConnectionClosedError as e:
-                logger.error(f"Kline WebSocket for {self.symbol}@{interval} closed with error: {e}. Reconnecting in 5s...")
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning(f"Kline WebSocket for {self.symbol}@{interval} closed. Reconnecting in 5s...")
                 await asyncio.sleep(5)
             except Exception as e:
-                logger.error(f"Error in kline WebSocket for {self.symbol}@{interval}: {e}. Reconnecting in 5s...")
-                await asyncio.sleep(5)
+                logger.error(f"An unexpected error occurred in kline WebSocket for {self.symbol}@{interval}: {e}", exc_info=True)
+                logger.info("Reconnecting in 10s...")
+                await asyncio.sleep(10)
 
     async def _connect_ticker_websocket(self):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@ticker"
@@ -68,14 +67,13 @@ class BinanceWebSocketClient:
                                 self.ticker_data['last_price'] = float(data['c'])
                                 self.ticker_data['timestamp'] = data['E'] # Event time
                                 # logger.debug(f"Received ticker: {self.ticker_data['last_price']}")
-            except websockets.exceptions.ConnectionClosedOK:
-                logger.warning(f"Ticker WebSocket for {self.symbol} closed normally. Reconnecting...")
-            except websockets.exceptions.ConnectionClosedError as e:
-                logger.error(f"Ticker WebSocket for {self.symbol} closed with error: {e}. Reconnecting in 5s...")
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning(f"Ticker WebSocket for {self.symbol} closed. Reconnecting in 5s...")
                 await asyncio.sleep(5)
             except Exception as e:
-                logger.error(f"Error in ticker WebSocket for {self.symbol}: {e}. Reconnecting in 5s...")
-                await asyncio.sleep(5)
+                logger.error(f"An unexpected error occurred in ticker WebSocket for {self.symbol}: {e}", exc_info=True)
+                logger.info("Reconnecting in 10s...")
+                await asyncio.sleep(10)
 
     def _run_websocket_loop(self, coro):
         """Helper to run an async coroutine in a new event loop."""
