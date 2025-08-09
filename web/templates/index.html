@@ -76,7 +76,17 @@
                     <!-- New Analysis Details Block -->
                     <div class="bg-gray-900/50 p-2 rounded-md mb-3">
                         <h3 class="text-sm font-semibold text-gray-300 mb-1">Signal Analysis Breakdown:</h3>
-                        <pre class="text-xs font-mono text-gray-400 whitespace-pre-wrap" x-text="analysisDetails"></pre>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
+                                <div class="signal-box" :class="{
+                                    'border-green-500 bg-green-900/30': detail.includes('✅'),
+                                    'border-red-500 bg-red-900/30': detail.includes('❌')
+                                }">
+                                    <span x-text="detail.split(':')[0]"></span>
+                                    <span class="font-bold" x-text="detail.split(':')[1]"></span>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                     
                     <h3 class="text-md font-semibold mb-1">Candles Used for Calculation:</h3>
@@ -183,60 +193,90 @@
                 statusMessages: [],
                 lastModified: null,
                 ai_model_last_trained: 'N/A',
+                websocket: null, // Add websocket property
 
                 init() {
-                    this.fetchStatus();
-                    setInterval(() => this.fetchStatus(), 30000); // Reduced polling to every 30 seconds
+                    this.connectWebSocket(); // Connect to WebSocket
                     this.loadTradingViewChart();
                 },
 
-                fetchStatus() {
-                    fetch('/api/status')
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.error) throw new Error(data.error);
+                connectWebSocket() {
+                    // Determine WebSocket URL based on current location
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws/status`;
+                    
+                    this.websocket = new WebSocket(wsUrl);
 
-                            this.currentPrice = data.current_price ? '$' + parseFloat(data.current_price).toFixed(4) : 'N/A';
-                            this.hasPosition = data.has_position;
-                            this.balance = data.balance || {};
-                            this.tradeHistory = data.trade_history || [];
-                            this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
-                            this.signal = data.signal || 'Waiting...';
-                            this.signalReason = data.signal_reason || 'N/A';
-                            this.analysisDetails = data.analysis_details || 'N/A';
-                            this.strategy_params = data.strategy_params || {};
-                            this.live_candles = data.live_candles || [];
-                            this.statusMessages = data.status_messages || [];
-                            this.ai_model_last_trained = data.ai_model_last_trained || 'N/A';
+                    this.websocket.onopen = (event) => {
+                        console.log('WebSocket connection opened:', event);
+                        this.statusText = 'Connected';
+                        this.statusIcon = '🟢';
+                    };
 
-                            // Check if the state has been significantly changed by the bot
-                            if (this.lastModified && this.lastModified !== data.last_modified) {
-                                // A sell or a buy just happened. Clear messages after a delay.
-                                setTimeout(() => { this.statusMessages = [] }, 5000);
-                            }
-                            this.lastModified = data.last_modified;
+                    this.websocket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.updateDashboard(data);
+                    };
 
-                            if (this.hasPosition) {
-                                this.position = {
-                                    entry_price: data.position.entry_price ? parseFloat(data.position.entry_price).toFixed(4) : 'N/A',
-                                    size: data.position.size ? parseFloat(data.position.size).toFixed(6) : 'N/A',
-                                    timestamp: data.position.timestamp ? new Date(data.position.timestamp).toLocaleString() : 'N/A',
-                                };
-                                this.pnl = data.pnl.toFixed(2) + '%';
-                                this.statusIcon = '🟢';
-                                this.statusText = 'Position Open';
-                            } else {
-                                this.position = {};
-                                this.pnl = '0.00%';
-                                this.statusIcon = '🟡';
-                                this.statusText = 'Waiting for Signal';
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error fetching status:', error);
-                            this.statusIcon = '🔴';
-                            this.statusText = 'API Error';
-                        });
+                    this.websocket.onclose = (event) => {
+                        console.log('WebSocket connection closed:', event);
+                        this.statusText = 'Disconnected';
+                        this.statusIcon = '🔴';
+                        // Attempt to reconnect after a delay
+                        setTimeout(() => this.connectWebSocket(), 5000); 
+                    };
+
+                    this.websocket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.statusText = 'Error';
+                        this.statusIcon = '🔴';
+                        this.websocket.close(); // Close to trigger reconnect
+                    };
+                },
+
+                updateDashboard(data) {
+                    if (data.error) {
+                        console.error('Error from WebSocket data:', data.error);
+                        this.statusIcon = '🔴';
+                        this.statusText = 'API Error';
+                        return;
+                    }
+
+                    this.currentPrice = data.current_price ? '$' + parseFloat(data.current_price).toFixed(4) : 'N/A';
+                    this.hasPosition = data.has_position;
+                    this.balance = data.balance || {};
+                    this.tradeHistory = data.trade_history || [];
+                    this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
+                    this.signal = data.signal || 'Waiting...';
+                    this.signalReason = data.signal_reason || 'N/A';
+                    this.analysisDetails = data.analysis_details || 'N/A';
+                    this.strategy_params = data.strategy_params || {};
+                    this.live_candles = data.live_candles || [];
+                    this.statusMessages = data.status_messages || [];
+                    this.ai_model_last_trained = data.ai_model_last_trained || 'N/A';
+
+                    // Check if the state has been significantly changed by the bot
+                    if (this.lastModified && this.lastModified !== data.last_modified) {
+                        // A sell or a buy just happened. Clear messages after a delay.
+                        setTimeout(() => { this.statusMessages = [] }, 5000);
+                    }
+                    this.lastModified = data.last_modified;
+
+                    if (this.hasPosition) {
+                        this.position = {
+                            entry_price: data.position.entry_price ? parseFloat(data.position.entry_price).toFixed(4) : 'N/A',
+                            size: data.position.size ? parseFloat(data.position.size).toFixed(6) : 'N/A',
+                            timestamp: data.position.timestamp ? new Date(data.position.timestamp).toLocaleString() : 'N/A',
+                        };
+                        this.pnl = data.pnl.toFixed(2) + '%';
+                        this.statusIcon = '🟢';
+                        this.statusText = 'Position Open';
+                    } else {
+                        this.position = {};
+                        this.pnl = '0.00%';
+                        this.statusIcon = '🟡';
+                        this.statusText = 'Waiting for Signal';
+                    }
                 },
 
                 loadTradingViewChart() {

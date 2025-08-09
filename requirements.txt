@@ -1,5 +1,5 @@
 python-dotenv
-ccxt
+ccxt>=1.90.0
 requests
 fastapi
 uvicorn

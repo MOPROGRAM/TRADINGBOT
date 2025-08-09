@@ -43,6 +43,7 @@ def get_default_state():
             "timestamp": None,
             "highest_price_after_tp": None
         },
+        "previous_buy_signal": False, # Add default for signal crossing
         "last_modified": None
     }
 

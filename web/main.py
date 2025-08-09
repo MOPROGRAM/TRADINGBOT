@@ -4,7 +4,7 @@ import json
 import time
 import threading
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -24,34 +24,66 @@ logger = get_logger(__name__)
 app = FastAPI()
 exchange = get_exchange()
 
-# --- Caching Mechanism ---
-# Cache to store the last API response to reduce load on the exchange
+# --- WebSocket Connection Manager ---
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message)
+            except RuntimeError as e:
+                logger.error(f"Error sending message to WebSocket: {e}. Disconnecting client.")
+                self.active_connections.remove(connection) # Remove broken connection
+
+manager = ConnectionManager()
+
+# --- Caching Mechanism (still used for initial load or fallback) ---
 API_CACHE = None
 LAST_API_CALL_TIME = 0
 CACHE_DURATION_SECONDS = 10 # Cache the response for 10 seconds
 
-def run_bot_in_background():
+async def run_bot_in_background():
     """
     A simple threading background task to run the bot tick periodically.
     This runs in a separate thread to avoid blocking the FastAPI event loop.
     """
     # Add a more significant delay to ensure the web server starts up and becomes healthy
     # before the bot's first run. This is critical for platforms like Render.
-    time.sleep(20)
+    time.sleep(20) # Initial delay for server startup
     
     while True:
         try:
             logger.info("Running bot tick from background thread...")
             run_bot_tick()
+            
+            # After running the bot tick, fetch the latest status and broadcast it
+            # This needs to be awaited, so the background task must be async
+            latest_status = get_status() # Call the existing synchronous get_status
+            await manager.broadcast(json.dumps(latest_status))
+            
         except Exception as e:
             logger.error(f"An error occurred in the bot background thread: {e}", exc_info=True)
-        time.sleep(POLL_SECONDS)
+        await asyncio.sleep(POLL_SECONDS) # Use asyncio.sleep for async functions
+
+import asyncio # Import asyncio for async operations
 
 @app.on_event("startup")
-def startup_event():
-    logger.info("Starting bot in a background thread...")
-    thread = threading.Thread(target=run_bot_in_background, daemon=True)
-    thread.start()
+async def startup_event():
+    logger.info("Starting bot in a background task...")
+    # Use asyncio.create_task for async background tasks in FastAPI
+    asyncio.create_task(run_bot_in_background())
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
@@ -65,6 +97,28 @@ SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "symbol": SYMBOL})
+
+@app.websocket("/ws/status")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        # Send initial status immediately upon connection
+        initial_status = get_status()
+        await websocket.send_text(json.dumps(initial_status))
+        
+        # Keep the connection open, waiting for disconnect
+        while True:
+            # You can add a small delay or a ping/pong mechanism here
+            # to keep the connection alive and detect disconnections.
+            # For now, just await any incoming message (which we don't expect)
+            # or rely on the client to close the connection.
+            await websocket.receive_text() 
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        logger.info("WebSocket client disconnected.")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}", exc_info=True)
+        manager.disconnect(websocket)
 
 @app.get("/api/logs")
 def get_live_logs():

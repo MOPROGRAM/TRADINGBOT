@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 from logger import get_logger
-from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade
+from exchange import get_exchange, fetch_candles, get_current_price, create_market_buy_order, create_market_sell_order, get_account_balance, fetch_last_buy_trade, start_websocket_client
 import signals
-from state import load_state, save_state, clear_state, save_trade_history
+from state import load_state, save_state, clear_state, save_trade_history, get_default_state
 from notifier import send_telegram_message
 from shared_state import strategy_params
 import tempfile
@@ -38,7 +38,8 @@ def initialize_strategy_params():
     strategy_params["timeframe"] = TIMEFRAME
     strategy_params["trend_timeframe"] = TREND_TIMEFRAME # Add new timeframe to web status
     strategy_params["buy_signal_period"] = signals.VOLUME_SMA_PERIOD
-    strategy_params["sell_signal_period"] = signals.EXIT_EMA_PERIOD
+    strategy_params["sell_signal_period_short"] = signals.EXIT_EMA_PERIOD_SHORT
+    strategy_params["sell_signal_period_long"] = signals.EXIT_EMA_PERIOD_LONG
     strategy_params["trend_ema_period"] = signals.TREND_EMA_PERIOD
     strategy_params["exit_rsi_level"] = signals.EXIT_RSI_LEVEL
     strategy_params["atr_period"] = ATR_PERIOD
@@ -165,8 +166,15 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     send_telegram_message(msg)
     logger.info(msg)
     
-
-    clear_state()
+    # --- Custom State Clearing to preserve signal state ---
+    # Preserve the last signal state to prevent immediate re-buy
+    last_signal_state = state.get('previous_buy_signal', False)
+    new_state = load_state() # Load the latest state just in case
+    new_state = get_default_state() # Get a clean default state
+    new_state['previous_buy_signal'] = last_signal_state # Re-apply the signal state
+    save_state(new_state)
+    logger.info(f"State cleared, but previous_buy_signal ({last_signal_state}) was preserved.")
+    
     return True
 
 def write_web_status(status_data):
@@ -263,13 +271,23 @@ def handle_in_position(exchange, state, current_price, candles):
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 
-def handle_no_position(exchange, balance, current_price, candles_primary, candles_trend):
+def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend):
     """
-    Handles the logic when the bot is not in a position, using multi-timeframe data.
+    Handles the logic when the bot is not in a position, using multi-timeframe data and signal crossing.
     Returns: signal, signal_reason, analysis_details
     """
+    # Get current signal state and previous signal state
     is_buy_signal, analysis_details = signals.check_buy_signal(candles_primary, candles_trend)
-    if is_buy_signal:
+    previous_buy_signal = state.get('previous_buy_signal', False)
+
+    # Update the state with the current signal for the next tick
+    state['previous_buy_signal'] = is_buy_signal
+    save_state(state)
+
+    # --- Signal Crossing Logic ---
+    # We only buy if the signal has just turned from False to True
+    if is_buy_signal and not previous_buy_signal:
+        logger.info("BUY SIGNAL CROSSOVER DETECTED: Signal changed from False to True.")
         quote_currency = SYMBOL.split('/')[1]
         amount_usdt = balance.get(quote_currency, {}).get('free', 0)
         
@@ -313,6 +331,10 @@ def handle_no_position(exchange, balance, current_price, candles_primary, candle
         save_state(state)
         return "Pending Buy", analysis_details, analysis_details
 
+    # If buy signal is active but didn't cross over, just report it
+    elif is_buy_signal:
+        return "Waiting (Signal Active)", "Buy signal is active, but no crossover.", analysis_details
+
     return "Waiting (no position)", "No buy signal.", analysis_details
 
 def run_bot_tick():
@@ -350,11 +372,14 @@ def run_bot_tick():
             sync_position_with_exchange(exchange, SYMBOL)
             state = load_state()
 
-        # --- Fetch Data ---
+        # --- Fetch Data from WebSocket Cache ---
         current_price = get_current_price(exchange, SYMBOL)
-        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=100)
-        candles_trend = fetch_candles(exchange, SYMBOL, TREND_TIMEFRAME, limit=100)
-        
+        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch more for trend analysis
+        # For the trend timeframe, we might still need a REST call if not watched by websocket,
+        # or we can derive it from the primary candles if the library supports it.
+        # For simplicity, we'll continue to fetch it via REST for now.
+        candles_trend = exchange.fetch_ohlcv(SYMBOL, TREND_TIMEFRAME, limit=100)
+
         if not current_price or not candles_primary or len(candles_primary) < 50 or not candles_trend or len(candles_trend) < 50:
             signal, signal_reason = "Data Error", "Failed to fetch price or candle data for one or both timeframes."
             analysis_details = signal_reason
@@ -374,7 +399,8 @@ def run_bot_tick():
                         save_state(state)
                     return # Bot tick is done for now
             else:
-                signal, signal_reason, analysis_details = handle_no_position(exchange, balance, current_price, candles_primary, candles_trend)
+                # Pass the state to handle_no_position
+                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend)
                 # If a buy signal was generated, update the buy signal time
                 if signal == "Buy": # Assuming "Buy" is the signal when a buy trade occurs
                     last_buy_signal_time = datetime.now().isoformat()
@@ -470,3 +496,8 @@ def run_bot_tick():
 
 # Initialize parameters on startup
 initialize_strategy_params()
+
+# --- Start WebSocket Client ---
+logger.info("Starting WebSocket client...")
+start_websocket_client()
+logger.info("WebSocket client started.")

@@ -141,3 +141,475 @@
 2025-08-08 21:02:09,400 - bot - INFO - web_status.json updated.
 2025-08-08 21:02:19,419 - bot - INFO - --- Running bot tick ---
 2025-08-08 21:02:20,734 - bot - INFO - web_status.json updated.
+2025-08-08 21:02:30,749 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:02:32,127 - bot - INFO - web_status.json updated.
+2025-08-08 21:02:42,146 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:02:44,094 - bot - INFO - web_status.json updated.
+2025-08-08 21:02:54,108 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:02:55,974 - bot - INFO - web_status.json updated.
+2025-08-08 21:03:05,987 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:03:07,824 - bot - INFO - web_status.json updated.
+2025-08-08 21:03:17,836 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:03:19,698 - bot - INFO - web_status.json updated.
+2025-08-08 21:03:29,712 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:03:31,352 - bot - INFO - web_status.json updated.
+2025-08-08 21:03:41,365 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:03:43,057 - bot - INFO - web_status.json updated.
+2025-08-08 21:03:53,077 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:03:55,610 - bot - INFO - web_status.json updated.
+2025-08-08 21:04:05,623 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:04:07,335 - bot - INFO - web_status.json updated.
+2025-08-08 21:04:17,349 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:04:18,916 - bot - INFO - web_status.json updated.
+2025-08-08 21:04:28,928 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:04:30,569 - bot - INFO - web_status.json updated.
+2025-08-08 21:04:40,582 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:04:42,233 - bot - INFO - web_status.json updated.
+2025-08-08 21:04:52,246 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:04:54,743 - bot - INFO - web_status.json updated.
+2025-08-08 21:05:04,756 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:05:06,216 - bot - INFO - web_status.json updated.
+2025-08-08 21:05:16,235 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:05:17,652 - bot - INFO - web_status.json updated.
+2025-08-08 21:05:27,665 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:05:29,393 - bot - INFO - web_status.json updated.
+2025-08-08 21:05:39,406 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:05:40,878 - bot - INFO - web_status.json updated.
+2025-08-08 21:05:50,892 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:05:52,561 - bot - INFO - web_status.json updated.
+2025-08-08 21:06:02,574 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:06:03,886 - bot - INFO - web_status.json updated.
+2025-08-08 21:06:13,901 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:06:16,103 - bot - INFO - web_status.json updated.
+2025-08-08 21:06:26,115 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:06:28,017 - bot - INFO - web_status.json updated.
+2025-08-08 21:06:38,029 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:06:39,969 - bot - INFO - web_status.json updated.
+2025-08-08 21:06:49,982 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:06:51,423 - bot - INFO - web_status.json updated.
+2025-08-08 21:07:01,436 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:07:03,667 - bot - INFO - web_status.json updated.
+2025-08-08 21:07:13,680 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:07:15,088 - bot - INFO - web_status.json updated.
+2025-08-08 21:07:25,101 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:07:27,327 - bot - INFO - web_status.json updated.
+2025-08-08 21:07:37,349 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:07:40,073 - bot - INFO - web_status.json updated.
+2025-08-08 21:07:50,086 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:07:52,755 - bot - INFO - web_status.json updated.
+2025-08-08 21:08:02,768 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:08:04,529 - bot - INFO - web_status.json updated.
+2025-08-08 21:08:14,542 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:08:16,148 - bot - INFO - web_status.json updated.
+2025-08-08 21:08:26,161 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:08:27,663 - bot - INFO - web_status.json updated.
+2025-08-08 21:08:37,676 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:08:39,490 - bot - INFO - web_status.json updated.
+2025-08-08 21:08:49,503 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:08:51,729 - bot - INFO - web_status.json updated.
+2025-08-08 21:09:01,748 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:09:03,297 - bot - INFO - web_status.json updated.
+2025-08-08 21:09:13,311 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:09:15,285 - bot - INFO - web_status.json updated.
+2025-08-08 21:09:25,304 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:09:26,865 - bot - INFO - web_status.json updated.
+2025-08-08 21:09:36,885 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:09:38,552 - bot - INFO - web_status.json updated.
+2025-08-08 21:09:48,565 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:09:50,243 - bot - INFO - web_status.json updated.
+2025-08-08 21:10:00,256 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:10:03,135 - bot - INFO - web_status.json updated.
+2025-08-08 21:10:13,148 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:10:14,822 - bot - INFO - web_status.json updated.
+2025-08-08 21:10:24,836 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:10:26,535 - bot - INFO - web_status.json updated.
+2025-08-08 21:10:36,547 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:10:38,225 - bot - INFO - Executing sell for reason: TTP
+2025-08-08 21:10:38,226 - bot - INFO - State size was 500.0, actual balance is 500.0. Selling actual balance.
+2025-08-08 21:10:38,362 - bot - INFO - ✅ <b>TTP SELL</b>
+Symbol: <code>XLM/USDT</code>
+Price: <code>$0.4548</code>
+PnL: <code>0.31%</code>
+2025-08-08 21:10:38,364 - bot - INFO - web_status.json updated.
+2025-08-08 21:10:48,377 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:10:48,389 - bot - WARNING - No local state, but found position on exchange. Syncing...
+2025-08-08 21:10:48,389 - bot - INFO - Syncing position state with exchange...
+2025-08-08 21:10:48,390 - bot - WARNING - Found 500.000000 XLM on exchange. Attempting to sync from trade history.
+2025-08-08 21:10:49,475 - bot - ERROR - Could not find a recent buy trade. Falling back to approximation.
+2025-08-08 21:10:49,630 - bot - INFO - Successfully synced position using fallback.
+2025-08-08 21:10:50,049 - bot - INFO - Initial ATR-based SL/TP set. SL: 0.4538, TP: 0.4568
+2025-08-08 21:10:50,054 - bot - INFO - web_status.json updated.
+2025-08-08 21:11:00,066 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:11:02,061 - bot - INFO - web_status.json updated.
+2025-08-08 21:11:12,074 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:11:13,786 - bot - INFO - web_status.json updated.
+2025-08-08 21:11:23,799 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:11:25,839 - bot - INFO - web_status.json updated.
+2025-08-08 21:11:35,853 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:11:37,778 - bot - INFO - web_status.json updated.
+2025-08-08 21:11:47,803 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:11:49,576 - bot - INFO - web_status.json updated.
+2025-08-08 21:11:59,589 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:12:01,359 - bot - INFO - web_status.json updated.
+2025-08-08 21:12:11,399 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:12:13,256 - bot - INFO - web_status.json updated.
+2025-08-08 21:12:23,274 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:12:25,412 - bot - INFO - web_status.json updated.
+2025-08-08 21:12:35,425 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:12:37,709 - bot - INFO - web_status.json updated.
+2025-08-08 21:12:47,729 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:12:49,937 - bot - INFO - web_status.json updated.
+2025-08-08 21:12:59,950 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:13:01,501 - bot - INFO - web_status.json updated.
+2025-08-08 21:13:11,516 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:13:13,602 - bot - INFO - web_status.json updated.
+2025-08-08 21:13:23,616 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:13:25,014 - bot - INFO - web_status.json updated.
+2025-08-08 21:13:35,028 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:13:36,950 - bot - INFO - web_status.json updated.
+2025-08-08 21:13:46,963 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:13:48,959 - bot - INFO - web_status.json updated.
+2025-08-08 21:13:58,973 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:14:00,234 - bot - INFO - web_status.json updated.
+2025-08-08 21:14:10,246 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:14:11,815 - bot - INFO - web_status.json updated.
+2025-08-08 21:14:21,828 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:14:23,806 - bot - INFO - web_status.json updated.
+2025-08-08 21:14:33,820 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:14:35,869 - bot - INFO - web_status.json updated.
+2025-08-08 21:14:45,882 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:14:48,069 - bot - INFO - web_status.json updated.
+2025-08-08 21:14:58,082 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:14:59,595 - bot - INFO - web_status.json updated.
+2025-08-08 21:15:09,608 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:15:11,384 - bot - INFO - web_status.json updated.
+2025-08-08 21:15:21,401 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:15:23,313 - bot - INFO - web_status.json updated.
+2025-08-08 21:15:33,326 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:15:35,023 - bot - INFO - web_status.json updated.
+2025-08-08 21:15:45,036 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:15:47,080 - bot - INFO - web_status.json updated.
+2025-08-08 21:15:57,094 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:15:58,534 - bot - INFO - web_status.json updated.
+2025-08-08 21:16:08,546 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:16:10,527 - bot - INFO - web_status.json updated.
+2025-08-08 21:16:20,540 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:16:22,073 - bot - INFO - web_status.json updated.
+2025-08-08 21:16:32,086 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:16:33,795 - bot - INFO - web_status.json updated.
+2025-08-08 21:16:43,807 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:16:45,884 - bot - INFO - web_status.json updated.
+2025-08-08 21:16:55,896 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:16:57,713 - bot - INFO - web_status.json updated.
+2025-08-08 21:17:07,726 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:17:09,318 - bot - INFO - web_status.json updated.
+2025-08-08 21:17:19,334 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:17:21,603 - bot - INFO - web_status.json updated.
+2025-08-08 21:17:31,616 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:17:32,992 - bot - INFO - web_status.json updated.
+2025-08-08 21:17:43,005 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:17:44,492 - bot - INFO - web_status.json updated.
+2025-08-08 21:17:54,506 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:17:56,160 - bot - INFO - web_status.json updated.
+2025-08-08 21:18:06,177 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:18:07,734 - bot - INFO - web_status.json updated.
+2025-08-08 21:18:17,753 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:18:19,488 - bot - INFO - web_status.json updated.
+2025-08-08 21:18:29,501 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:18:31,025 - bot - INFO - web_status.json updated.
+2025-08-08 21:18:41,038 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:18:42,735 - bot - INFO - web_status.json updated.
+2025-08-08 21:18:52,748 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:18:54,875 - bot - INFO - web_status.json updated.
+2025-08-08 21:19:04,888 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:19:06,915 - bot - INFO - web_status.json updated.
+2025-08-08 21:19:16,928 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:19:18,757 - bot - INFO - web_status.json updated.
+2025-08-08 21:19:28,776 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:19:30,373 - bot - INFO - web_status.json updated.
+2025-08-08 21:19:40,386 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:19:42,322 - bot - INFO - web_status.json updated.
+2025-08-08 21:19:52,335 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:19:54,167 - bot - INFO - web_status.json updated.
+2025-08-08 21:20:04,180 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:20:05,690 - bot - INFO - web_status.json updated.
+2025-08-08 21:20:15,703 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:20:17,257 - bot - INFO - web_status.json updated.
+2025-08-08 21:20:27,271 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:20:28,899 - bot - INFO - web_status.json updated.
+2025-08-08 21:20:38,912 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:20:40,394 - bot - INFO - web_status.json updated.
+2025-08-08 21:20:50,407 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:20:51,879 - bot - INFO - web_status.json updated.
+2025-08-08 21:21:01,893 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:21:03,943 - bot - INFO - web_status.json updated.
+2025-08-08 21:21:13,956 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:21:15,483 - bot - INFO - web_status.json updated.
+2025-08-08 21:21:25,496 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:21:27,330 - bot - INFO - web_status.json updated.
+2025-08-08 21:21:37,346 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:21:39,139 - bot - INFO - web_status.json updated.
+2025-08-08 21:21:49,152 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:21:51,092 - bot - INFO - web_status.json updated.
+2025-08-08 21:22:01,104 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:22:02,829 - bot - INFO - web_status.json updated.
+2025-08-08 21:22:12,855 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:22:14,415 - bot - INFO - web_status.json updated.
+2025-08-08 21:22:24,434 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:22:26,220 - bot - INFO - web_status.json updated.
+2025-08-08 21:22:36,233 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:22:37,943 - bot - INFO - web_status.json updated.
+2025-08-08 21:22:47,959 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:22:50,145 - bot - INFO - web_status.json updated.
+2025-08-08 21:23:00,159 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:23:02,073 - bot - INFO - web_status.json updated.
+2025-08-08 21:23:12,086 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:23:13,463 - bot - INFO - web_status.json updated.
+2025-08-08 21:23:23,477 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:23:24,857 - bot - INFO - web_status.json updated.
+2025-08-08 21:23:34,870 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:23:36,655 - bot - INFO - web_status.json updated.
+2025-08-08 21:23:46,670 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:23:48,275 - bot - INFO - web_status.json updated.
+2025-08-08 21:23:58,288 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:23:59,937 - bot - INFO - web_status.json updated.
+2025-08-08 21:24:09,951 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:24:11,645 - bot - INFO - web_status.json updated.
+2025-08-08 21:24:21,661 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:24:23,630 - bot - INFO - web_status.json updated.
+2025-08-08 21:24:33,642 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:24:35,271 - bot - INFO - web_status.json updated.
+2025-08-08 21:24:45,283 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:24:46,982 - bot - INFO - web_status.json updated.
+2025-08-08 21:24:57,003 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:24:58,565 - bot - INFO - web_status.json updated.
+2025-08-08 21:25:08,578 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:25:10,164 - bot - INFO - web_status.json updated.
+2025-08-08 21:25:20,177 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:25:22,149 - bot - INFO - web_status.json updated.
+2025-08-08 21:25:32,162 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:25:33,649 - bot - INFO - web_status.json updated.
+2025-08-08 21:25:43,663 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:25:45,377 - bot - INFO - web_status.json updated.
+2025-08-08 21:25:55,390 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:25:57,011 - bot - INFO - web_status.json updated.
+2025-08-08 21:26:07,023 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:26:08,918 - bot - INFO - web_status.json updated.
+2025-08-08 21:26:18,931 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:26:20,929 - bot - INFO - web_status.json updated.
+2025-08-08 21:26:30,944 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:26:32,670 - bot - INFO - web_status.json updated.
+2025-08-08 21:26:42,684 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:26:44,859 - bot - INFO - web_status.json updated.
+2025-08-08 21:26:54,872 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:26:56,249 - bot - INFO - web_status.json updated.
+2025-08-08 21:27:06,276 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:27:08,096 - bot - INFO - web_status.json updated.
+2025-08-08 21:27:18,113 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:27:19,640 - bot - INFO - web_status.json updated.
+2025-08-08 21:27:29,653 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:27:31,644 - bot - INFO - web_status.json updated.
+2025-08-08 21:27:41,658 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:27:43,409 - bot - INFO - web_status.json updated.
+2025-08-08 21:27:53,422 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:27:54,793 - bot - INFO - web_status.json updated.
+2025-08-08 21:28:04,806 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:28:06,562 - bot - INFO - web_status.json updated.
+2025-08-08 21:28:16,575 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:28:18,387 - bot - INFO - web_status.json updated.
+2025-08-08 21:28:28,400 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:28:30,342 - bot - INFO - web_status.json updated.
+2025-08-08 21:28:40,356 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:28:42,112 - bot - INFO - web_status.json updated.
+2025-08-08 21:28:52,139 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:28:53,866 - bot - INFO - web_status.json updated.
+2025-08-08 21:29:03,880 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:29:05,972 - bot - INFO - web_status.json updated.
+2025-08-08 21:29:15,985 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:29:18,212 - bot - INFO - web_status.json updated.
+2025-08-08 21:29:28,225 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:29:29,822 - bot - INFO - web_status.json updated.
+2025-08-08 21:29:39,836 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:29:41,548 - bot - INFO - web_status.json updated.
+2025-08-08 21:29:51,561 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:29:53,164 - bot - INFO - web_status.json updated.
+2025-08-08 21:30:03,178 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:30:05,068 - bot - INFO - web_status.json updated.
+2025-08-08 21:30:15,082 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:30:16,651 - bot - INFO - web_status.json updated.
+2025-08-08 21:30:26,665 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:30:28,203 - bot - INFO - web_status.json updated.
+2025-08-08 21:30:38,216 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:30:39,903 - bot - INFO - web_status.json updated.
+2025-08-08 21:30:49,927 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:30:51,870 - bot - INFO - web_status.json updated.
+2025-08-08 21:31:01,883 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:31:03,125 - bot - INFO - web_status.json updated.
+2025-08-08 21:31:13,137 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:31:15,131 - bot - INFO - web_status.json updated.
+2025-08-08 21:31:25,151 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:31:26,875 - bot - INFO - web_status.json updated.
+2025-08-08 21:31:36,887 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:31:38,527 - bot - INFO - web_status.json updated.
+2025-08-08 21:31:48,539 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:31:49,948 - bot - INFO - web_status.json updated.
+2025-08-08 21:31:59,960 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:32:01,754 - bot - INFO - web_status.json updated.
+2025-08-08 21:32:11,767 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:32:13,427 - bot - INFO - web_status.json updated.
+2025-08-08 21:32:23,440 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:32:25,197 - bot - INFO - web_status.json updated.
+2025-08-08 21:32:35,210 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:32:36,787 - bot - INFO - web_status.json updated.
+2025-08-08 21:32:46,807 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:32:48,310 - bot - INFO - web_status.json updated.
+2025-08-08 21:32:58,323 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:33:00,020 - bot - INFO - web_status.json updated.
+2025-08-08 21:33:10,035 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:33:11,987 - bot - INFO - web_status.json updated.
+2025-08-08 21:33:21,999 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:33:24,073 - bot - INFO - web_status.json updated.
+2025-08-08 21:33:34,086 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:33:35,823 - bot - INFO - web_status.json updated.
+2025-08-08 21:33:45,837 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:33:47,531 - bot - INFO - web_status.json updated.
+2025-08-08 21:33:57,545 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:33:59,387 - bot - INFO - web_status.json updated.
+2025-08-08 21:34:09,400 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:34:11,328 - bot - INFO - web_status.json updated.
+2025-08-08 21:34:21,342 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:34:26,060 - bot - INFO - web_status.json updated.
+2025-08-08 21:34:36,121 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:34:37,920 - bot - INFO - web_status.json updated.
+2025-08-08 21:34:47,948 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:34:50,230 - bot - INFO - web_status.json updated.
+2025-08-08 21:35:00,250 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:35:02,446 - bot - INFO - web_status.json updated.
+2025-08-08 21:35:12,459 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:35:14,145 - bot - INFO - web_status.json updated.
+2025-08-08 21:35:24,158 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:35:25,924 - bot - INFO - web_status.json updated.
+2025-08-08 21:35:35,937 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:35:37,931 - bot - INFO - web_status.json updated.
+2025-08-08 21:35:47,944 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:35:49,473 - bot - INFO - web_status.json updated.
+2025-08-08 21:35:59,486 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:36:00,807 - bot - INFO - web_status.json updated.
+2025-08-08 21:36:10,820 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:36:13,243 - bot - INFO - web_status.json updated.
+2025-08-08 21:36:23,258 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:36:25,229 - bot - INFO - web_status.json updated.
+2025-08-08 21:36:35,242 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:36:37,325 - bot - INFO - web_status.json updated.
+2025-08-08 21:36:47,338 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:36:49,219 - bot - INFO - web_status.json updated.
+2025-08-08 21:36:59,238 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:37:00,663 - bot - INFO - web_status.json updated.
+2025-08-08 21:37:10,677 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:37:12,454 - bot - INFO - web_status.json updated.
+2025-08-08 21:37:22,471 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:37:24,510 - bot - INFO - web_status.json updated.
+2025-08-08 21:37:34,523 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:37:36,474 - bot - INFO - web_status.json updated.
+2025-08-08 21:37:46,488 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:37:49,051 - bot - INFO - web_status.json updated.
+2025-08-08 21:37:59,063 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:38:00,693 - bot - INFO - web_status.json updated.
+2025-08-08 21:38:10,706 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:38:12,640 - bot - INFO - web_status.json updated.
+2025-08-08 21:38:22,653 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:38:24,184 - bot - INFO - web_status.json updated.
+2025-08-08 21:38:34,198 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:38:35,749 - bot - INFO - web_status.json updated.
+2025-08-08 21:38:45,762 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:38:47,119 - bot - INFO - web_status.json updated.
+2025-08-08 21:38:57,132 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:38:58,855 - bot - INFO - web_status.json updated.
+2025-08-08 21:39:08,869 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:39:10,875 - bot - INFO - web_status.json updated.
+2025-08-08 21:39:20,889 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:39:22,510 - bot - INFO - web_status.json updated.
+2025-08-08 21:39:32,523 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:39:34,205 - bot - INFO - web_status.json updated.
+2025-08-08 21:39:44,218 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:39:46,420 - bot - INFO - web_status.json updated.
+2025-08-08 21:39:56,432 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:39:57,839 - bot - INFO - web_status.json updated.
+2025-08-08 21:40:07,852 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:40:09,200 - bot - INFO - web_status.json updated.
+2025-08-08 21:40:19,213 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:40:21,027 - bot - INFO - web_status.json updated.
+2025-08-08 21:40:31,046 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:40:32,730 - bot - INFO - web_status.json updated.
+2025-08-08 21:40:42,744 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:40:44,460 - bot - INFO - web_status.json updated.
+2025-08-08 21:40:54,474 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:40:56,006 - bot - INFO - web_status.json updated.
+2025-08-08 21:41:06,019 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:41:07,813 - bot - INFO - web_status.json updated.
+2025-08-08 21:41:17,825 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:41:19,228 - bot - INFO - web_status.json updated.
+2025-08-08 21:41:29,241 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:41:31,277 - bot - INFO - web_status.json updated.
+2025-08-08 21:41:41,291 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:41:42,714 - bot - INFO - web_status.json updated.
+2025-08-08 21:41:52,727 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:41:54,632 - bot - INFO - web_status.json updated.
+2025-08-08 21:42:04,646 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:42:06,317 - bot - INFO - web_status.json updated.
+2025-08-08 21:42:16,330 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:42:18,021 - bot - INFO - web_status.json updated.
+2025-08-08 21:42:28,038 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:42:29,948 - bot - INFO - web_status.json updated.
+2025-08-08 21:42:39,961 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:42:42,377 - bot - INFO - web_status.json updated.
+2025-08-08 21:42:52,390 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:42:54,320 - bot - INFO - web_status.json updated.
+2025-08-08 21:43:04,335 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:43:06,029 - bot - INFO - web_status.json updated.
+2025-08-08 21:43:16,042 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:43:17,926 - bot - INFO - web_status.json updated.
+2025-08-08 21:43:27,939 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:43:29,902 - bot - INFO - web_status.json updated.
+2025-08-08 21:43:39,930 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:43:42,253 - bot - INFO - web_status.json updated.
+2025-08-08 21:43:52,266 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:43:53,807 - bot - INFO - web_status.json updated.
+2025-08-08 21:44:03,822 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:44:05,581 - bot - INFO - web_status.json updated.
+2025-08-08 21:44:15,595 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:44:17,009 - bot - INFO - web_status.json updated.
+2025-08-08 21:44:27,022 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:44:28,839 - bot - INFO - web_status.json updated.
+2025-08-08 21:44:38,854 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:44:40,818 - bot - INFO - web_status.json updated.
+2025-08-08 21:44:50,830 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:44:52,411 - bot - INFO - web_status.json updated.
+2025-08-08 21:45:02,426 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:45:04,018 - bot - INFO - web_status.json updated.
+2025-08-08 21:45:14,032 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:45:15,585 - bot - INFO - web_status.json updated.
+2025-08-08 21:45:25,599 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:45:27,417 - bot - INFO - web_status.json updated.
+2025-08-08 21:45:37,430 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:45:39,203 - bot - INFO - web_status.json updated.
+2025-08-08 21:45:49,219 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:45:51,451 - bot - INFO - web_status.json updated.
+2025-08-08 21:46:01,464 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:46:03,016 - bot - INFO - web_status.json updated.
+2025-08-08 21:46:13,030 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:46:15,499 - bot - INFO - web_status.json updated.
+2025-08-08 21:46:25,513 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:46:26,916 - bot - INFO - web_status.json updated.
+2025-08-08 21:46:36,953 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:46:38,884 - bot - INFO - web_status.json updated.
+2025-08-08 21:46:48,898 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:46:50,708 - bot - INFO - web_status.json updated.
+2025-08-08 21:47:00,721 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:47:02,143 - bot - INFO - web_status.json updated.
+2025-08-08 21:47:12,156 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:47:14,129 - bot - INFO - web_status.json updated.
+2025-08-08 21:47:24,141 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:47:25,797 - bot - INFO - web_status.json updated.
+2025-08-08 21:47:35,810 - bot - INFO - --- Running bot tick ---
+2025-08-08 21:47:37,507 - bot - INFO - web_status.json updated.

@@ -8,7 +8,8 @@ logger = get_logger(__name__)
 
 # Read signal-specific parameters from environment variables
 VOLUME_SMA_PERIOD = int(os.getenv('VOLUME_SMA_PERIOD', 20))
-EXIT_EMA_PERIOD = int(os.getenv('EXIT_EMA_PERIOD', 9))
+EXIT_EMA_PERIOD_SHORT = int(os.getenv('EXIT_EMA_PERIOD_SHORT', 9))
+EXIT_EMA_PERIOD_LONG = int(os.getenv('EXIT_EMA_PERIOD_LONG', 21))
 TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
 BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55))
@@ -121,12 +122,13 @@ def check_buy_signal(candles_primary, candles_trend):
     # --- 3. Final Decision & Reason ---
     all_conditions_met = trend_ok and rsi_ok and volume_ok # Removed AI buy signal dependency
     
-    # Build the reason string for the UI
-    reason_str = (
-        f"Price(5m) > EMA({TREND_EMA_PERIOD})(1h): {'✅' if trend_ok else '❌'} (Price: {df_primary['close'].iloc[-1]:.4f}, EMA: {long_ema_trend.iloc[-1]:.4f}) | "
-        f"RSI > 50: {'✅' if rsi_ok else '❌'} (Current: {latest_rsi:.2f}) | "
-        f"Volume(5m) >= 50% SMA({VOLUME_SMA_PERIOD}): {'✅' if volume_ok else '❌'} (Latest: {latest_volume:.2f}, SMA: {volume_sma:.2f})"
-    )
+    # Build the reason string for the UI, using a specific separator for easy parsing
+    reasons = [
+        f"Price > Trend EMA ({TREND_EMA_PERIOD}h):{'✅' if trend_ok else '❌'}",
+        f"RSI > 50:{'✅' if rsi_ok else '❌'}",
+        f"Volume >= 50% SMA ({VOLUME_SMA_PERIOD}):{'✅' if volume_ok else '❌'}"
+    ]
+    reason_str = " | ".join(reasons)
 
     if all_conditions_met:
         logger.info(f"BUY SIGNAL: {reason_str}")
@@ -137,7 +139,7 @@ def check_buy_signal(candles_primary, candles_trend):
 
 def check_sell_signal(candles):
     """
-    Checks for multiple sell conditions and returns a detailed breakdown.
+    Checks for multiple sell conditions (Reversal Pattern OR EMA Crossover) and returns a detailed breakdown.
     """
     # --- Data Validation ---
     def is_valid_candle(c):
@@ -161,34 +163,38 @@ def check_sell_signal(candles):
         return False, "Not enough valid candles after cleaning data."
 
     # --- Calculate all sell indicators ---
-    short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD)
+    short_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD_SHORT)
+    long_ema = ta.ema(df['close'], length=EXIT_EMA_PERIOD_LONG)
     rsi = ta.rsi(df['close'], length=14)
     
     # --- Validate Indicators ---
-    if short_ema is None or short_ema.empty or pd.isna(short_ema.iloc[-1]):
-        return False, "Could not calculate exit EMA."
+    if short_ema is None or short_ema.empty or pd.isna(short_ema.iloc[-1]) or pd.isna(short_ema.iloc[-2]):
+        return False, "Could not calculate short EMA for sell."
+    if long_ema is None or long_ema.empty or pd.isna(long_ema.iloc[-1]) or pd.isna(long_ema.iloc[-2]):
+        return False, "Could not calculate long EMA for sell."
     if rsi is None or rsi.empty or pd.isna(rsi.iloc[-1]):
         return False, "Could not calculate RSI for sell."
 
-    # Condition 1: Reversal Pattern
+    # --- Condition 1: Reversal Pattern ---
     reversal_pattern_met = check_three_bearish_candles(candles)
-
     # Confirmation for Reversal Pattern: RSI < 50 OR Current Price < EMA(9)
     rsi_confirms_reversal = rsi.iloc[-1] < 50
     price_below_ema_confirms_reversal = df['close'].iloc[-1] < short_ema.iloc[-1]
     reversal_confirmation_met = rsi_confirms_reversal or price_below_ema_confirms_reversal
-
-    # Combined Reversal Condition
     full_reversal_ok = reversal_pattern_met and reversal_confirmation_met
     
+    # --- Condition 2: Bearish EMA Crossover ---
+    # Check if the short EMA just crossed below the long EMA
+    ema_crossover_met = short_ema.iloc[-2] > long_ema.iloc[-2] and short_ema.iloc[-1] < long_ema.iloc[-1]
+
     # --- Final Decision & Reason ---
-    # Sell signal if Reversal Pattern is met (removed AI Sell Signal dependency)
-    any_condition_met = full_reversal_ok
+    any_condition_met = full_reversal_ok or ema_crossover_met
     
-    reason_str = (
-        f"Reversal Pattern (3 bearish candles + >=1% drop): {'✅' if reversal_pattern_met else '❌'} | "
-        f"Reversal Confirmation (RSI < 50 OR Price < EMA({EXIT_EMA_PERIOD})): {'✅' if reversal_confirmation_met else '❌'} (RSI: {rsi.iloc[-1]:.2f}, Price: {df['close'].iloc[-1]:.4f}, EMA: {short_ema.iloc[-1]:.4f})"
-    )
+    reasons = [
+        f"Reversal Pattern:{'✅' if full_reversal_ok else '❌'}",
+        f"EMA Crossover ({EXIT_EMA_PERIOD_SHORT}/{EXIT_EMA_PERIOD_LONG}):{'✅' if ema_crossover_met else '❌'}"
+    ]
+    reason_str = " | ".join(reasons)
 
     if any_condition_met:
         logger.info(f"SELL SIGNAL: {reason_str}")
