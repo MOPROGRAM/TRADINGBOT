@@ -1,5 +1,6 @@
 import os
-import ccxt.pro as ccxtpro  # Use ccxt.pro for websocket support
+import ccxt
+import ccxt.pro as ccxtpro
 import asyncio
 import threading
 from dotenv import load_dotenv
@@ -89,7 +90,7 @@ def start_websocket_client():
 
 # --- Modified functions to use live data ---
 
-def fetch_candles(exchange, symbol, timeframe, limit=100):
+async def fetch_candles(exchange, symbol, timeframe, limit=100):
     """
     Returns the latest candles from the live WebSocket data.
     The exchange, symbol, timeframe, and limit arguments are kept for compatibility
@@ -100,14 +101,14 @@ def fetch_candles(exchange, symbol, timeframe, limit=100):
             logger.warning("`fetch_candles` called but live_candles is empty. Waiting for WebSocket data.")
             # Fallback to REST API for initial fetch if needed, though start_websocket_client has a sleep timer
             try:
-                return exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+                return await exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
             except Exception as e:
                 logger.error(f"Fallback fetch_ohlcv failed: {e}")
                 return []
         # Return a copy to avoid modification issues
         return list(live_candles)
 
-def get_current_price(exchange, symbol):
+async def get_current_price(exchange, symbol):
     """
     Returns the latest price from the live WebSocket data.
     """
@@ -116,7 +117,7 @@ def get_current_price(exchange, symbol):
             logger.warning("`get_current_price` called but live_price is None. Waiting for WebSocket data.")
             # Fallback for initial price
             try:
-                ticker = exchange.fetch_ticker(symbol)
+                ticker = await exchange.fetch_ticker(symbol)
                 return ticker['last']
             except Exception as e:
                 logger.error(f"Fallback fetch_ticker failed: {e}")
@@ -125,10 +126,10 @@ def get_current_price(exchange, symbol):
 
 # --- Unchanged functions below (for now) ---
 
-def create_market_buy_order(exchange, symbol, amount_usdt):
+async def create_market_buy_order(exchange, symbol, amount_usdt):
     if DRY_RUN:
         logger.info(f"DRY RUN: Would buy {symbol} with {amount_usdt} USDT.")
-        price = get_current_price(exchange, symbol)
+        price = await get_current_price(exchange, symbol)
         if not price:
             logger.error("DRY RUN failed: Could not get current price for simulation.")
             return None
@@ -142,14 +143,14 @@ def create_market_buy_order(exchange, symbol, amount_usdt):
 
     try:
         # Using the regular (non-async) method for a one-off action
-        order = exchange.create_market_buy_order_with_cost(symbol, amount_usdt)
+        order = await exchange.create_market_buy_order_with_cost(symbol, amount_usdt)
         logger.info(f"Created market buy order: {order}")
         return order
     except ccxt.BaseError as e:
         logger.error(f"Error creating market buy order: {e}")
         return None
 
-def get_account_balance(exchange):
+async def get_account_balance(exchange):
     if DRY_RUN:
         logger.info("DRY RUN: Simulating account balance.")
         base_currency, quote_currency = SYMBOL.split('/')
@@ -158,20 +159,20 @@ def get_account_balance(exchange):
             base_currency: {"free": 0.0, "used": 0.0, "total": 0.0} # Start with no base currency
         }
     try:
-        balance = exchange.fetch_balance()
+        balance = await exchange.fetch_balance()
         return {
             asset: data
-            for asset, data in balance.items()
-            if isinstance(data, dict) and data.get('total') is not None and data['total'] > 0
+            for asset, data in balance['total'].items()
+            if data > 0
         }
     except ccxt.BaseError as e:
         logger.error(f"Error fetching account balance: {e}")
         return {}
 
-def fetch_last_buy_trade(exchange, symbol, lookback_limit=25):
+async def fetch_last_buy_trade(exchange, symbol, lookback_limit=25):
     try:
         logger.info(f"Fetching last trades for {symbol} to find entry price...")
-        my_trades = exchange.fetch_my_trades(symbol=symbol, limit=lookback_limit)
+        my_trades = await exchange.fetch_my_trades(symbol=symbol, limit=lookback_limit)
         buy_trades = [trade for trade in my_trades if trade.get('side') == 'buy']
         if not buy_trades:
             logger.warning(f"No buy trades found for {symbol} in the last {lookback_limit} trades.")
@@ -184,10 +185,10 @@ def fetch_last_buy_trade(exchange, symbol, lookback_limit=25):
         logger.error(f"Error fetching my trades for {symbol}: {e}")
         return None
 
-def create_market_sell_order(exchange, symbol, size):
+async def create_market_sell_order(exchange, symbol, size):
     if DRY_RUN:
         logger.info(f"DRY RUN: Would sell {size} of {symbol}.")
-        price = get_current_price(exchange, symbol)
+        price = await get_current_price(exchange, symbol)
         if not price:
             logger.error("DRY RUN failed: Could not get current price for simulation.")
             return None
@@ -200,7 +201,7 @@ def create_market_sell_order(exchange, symbol, size):
         }
 
     try:
-        order = exchange.create_market_sell_order(symbol, size)
+        order = await exchange.create_market_sell_order(symbol, size)
         logger.info(f"Created market sell order: {order}")
         return order
     except ccxt.BaseError as e:

@@ -17,7 +17,7 @@ from exchange import get_exchange, get_current_price, get_account_balance, fetch
 from signals import check_buy_signal, check_sell_signal
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
-from bot import run_bot_tick, POLL_SECONDS, TIMEFRAME
+from bot import run_bot_tick, POLL_SECONDS
 from shared_state import strategy_params
 
 logger = get_logger(__name__)
@@ -61,16 +61,16 @@ async def run_bot_in_background():
     """
     # Add a more significant delay to ensure the web server starts up and becomes healthy
     # before the bot's first run. This is critical for platforms like Render.
-    time.sleep(20) # Initial delay for server startup
+    await asyncio.sleep(20) # Initial delay for server startup
     
     while True:
         try:
             logger.info("Running bot tick from background thread...")
-            run_bot_tick()
+            await run_bot_tick()
             
             # After running the bot tick, fetch the latest status and broadcast it
             # This needs to be awaited, so the background task must be async
-            latest_status = get_status() # Call the existing synchronous get_status
+            latest_status = await get_status() # Call the existing synchronous get_status
             await manager.broadcast(json.dumps(latest_status))
             
         except Exception as e:
@@ -136,12 +136,8 @@ def get_live_logs():
         return {"logs": [f"Error reading logs: {e}"]}
 
 # Make the status endpoint synchronous
-@app.get("/api/status_sync")
-def get_status_sync():
-    return get_status()
-
 @app.get("/api/status")
-def get_status():
+async def get_status():
     global API_CACHE, LAST_API_CALL_TIME
     
     # Check if a valid cache is available
@@ -169,13 +165,13 @@ def get_status():
 
     try:
         logger.info("API: Fetching current price...")
-        current_price = get_current_price(exchange, SYMBOL)
+        current_price = await get_current_price(exchange, SYMBOL)
     except Exception as e:
         logger.error(f"API: Failed to get current price: {e}", exc_info=True)
 
     try:
         logger.info("API: Fetching account balance...")
-        balance = get_account_balance(exchange)
+        balance = await get_account_balance(exchange)
     except Exception as e:
         logger.error(f"API: Failed to get account balance: {e}", exc_info=True)
 
@@ -260,7 +256,7 @@ def get_status():
                         # Try to get price for conversion
                         try:
                             pair = f"{currency}/USDT"
-                            price_ticker = exchange.fetch_ticker(pair)
+                            price_ticker = await exchange.fetch_ticker(pair)
                             price_in_usdt = price_ticker['last']
                             total_balance_usdt += free_amount * price_in_usdt
                         except Exception as e:

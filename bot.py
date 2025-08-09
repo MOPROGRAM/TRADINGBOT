@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
@@ -51,7 +52,7 @@ def initialize_strategy_params():
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT # Add minimum trade amount
     logger.info(f"Strategy parameters initialized: {strategy_params}")
 
-def sync_position_with_exchange(exchange, symbol):
+async def sync_position_with_exchange(exchange, symbol):
     """
     Checks the exchange for an existing position and syncs it with the local state.
     """
@@ -62,14 +63,14 @@ def sync_position_with_exchange(exchange, symbol):
         logger.info("Local state already shows a position. Skipping sync.")
         return
 
-    balance = get_account_balance(exchange)
+    balance = await get_account_balance(exchange)
     base_currency = symbol.split('/')[0]
     base_currency_balance = balance.get(base_currency, {}).get('free', 0)
     min_position_amount = 1 
 
     if base_currency_balance > min_position_amount:
         logger.warning(f"Found {base_currency_balance:.6f} {base_currency} on exchange. Attempting to sync from trade history.")
-        last_buy_trade = fetch_last_buy_trade(exchange, symbol)
+        last_buy_trade = await fetch_last_buy_trade(exchange, symbol)
         
         if last_buy_trade:
             entry_price = last_buy_trade['price']
@@ -97,7 +98,7 @@ def sync_position_with_exchange(exchange, symbol):
             logger.info("Successfully synced position from exchange trade history.")
         else:
             logger.error("Could not find a recent buy trade. Falling back to approximation.")
-            current_price = get_current_price(exchange, symbol)
+            current_price = await get_current_price(exchange, symbol)
             if not current_price:
                 logger.error("Cannot re-create state: failed to fetch current price.")
                 return
@@ -118,7 +119,7 @@ def sync_position_with_exchange(exchange, symbol):
             send_telegram_message(msg)
             logger.info("Successfully synced position using fallback.")
 
-def execute_sell_and_record_trade(exchange, state, reason, current_price):
+async def execute_sell_and_record_trade(exchange, state, reason, current_price):
     """
     Executes a market sell order using the current available balance and records the trade details.
     This is more robust against state inconsistencies or precision issues.
@@ -127,7 +128,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     
     # --- Robust Sell Logic ---
     # 1. Get the actual available balance from the exchange right before selling.
-    balance = get_account_balance(exchange)
+    balance = await get_account_balance(exchange)
     base_currency = SYMBOL.split('/')[0]
     actual_sell_amount = balance.get(base_currency, {}).get('free', 0)
     
@@ -140,7 +141,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
 
     logger.info(f"State size was {state['position']['size']}, actual balance is {actual_sell_amount}. Selling actual balance.")
     # 2. Create the sell order using the actual balance.
-    sell_order = create_market_sell_order(exchange, SYMBOL, actual_sell_amount)
+    sell_order = await create_market_sell_order(exchange, SYMBOL, actual_sell_amount)
     
     if not sell_order:
         logger.error(f"Failed to create sell order for {reason}.")
@@ -199,7 +200,7 @@ def write_web_status(status_data):
         if 'temp_path' in locals() and os.path.exists(temp_path):
             os.remove(temp_path)
 
-def handle_in_position(exchange, state, current_price, candles):
+async def handle_in_position(exchange, state, current_price, candles):
     """
     Handles the logic when the bot is in a position.
     Returns: signal, signal_reason, trade_executed, analysis_details
@@ -258,7 +259,7 @@ def handle_in_position(exchange, state, current_price, candles):
         trailing_tp_activation_price=entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER) if current_atr else None
     )
     if reason in ["SL", "TP", "TTP"]:
-        if execute_sell_and_record_trade(exchange, state, reason, current_price):
+        if await execute_sell_and_record_trade(exchange, state, reason, current_price):
             # For SL/TP, the reason is clear and doesn't need a full breakdown.
             return "Sold", reason, True, f"Exit Reason: {reason}"
 
@@ -266,12 +267,12 @@ def handle_in_position(exchange, state, current_price, candles):
     is_sell_signal, analysis_details = signals.check_sell_signal(candles)
     if is_sell_signal:
         # The sell reason is the detailed analysis itself
-        if execute_sell_and_record_trade(exchange, state, "Signal", current_price):
+        if await execute_sell_and_record_trade(exchange, state, "Signal", current_price):
             return "Sold", "Exit Signal", True, analysis_details
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 
-def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend):
+async def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend):
     """
     Handles the logic when the bot is not in a position, using multi-timeframe data and signal crossing.
     Returns: signal, signal_reason, analysis_details
@@ -297,7 +298,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
             return "Waiting (no position)", reason, analysis_details
 
         if amount_usdt > 1: # Still keep this check for very small dust amounts
-            buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+            buy_order = await create_market_buy_order(exchange, SYMBOL, amount_usdt)
             if buy_order:
                 new_state = load_state()
                 new_state['has_position'] = True
@@ -337,7 +338,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
 
     return "Waiting (no position)", "No buy signal.", analysis_details
 
-def run_bot_tick():
+async def run_bot_tick():
     """
     Runs a single check of the trading bot logic.
     """
@@ -355,7 +356,7 @@ def run_bot_tick():
         state = load_state()
 
         # --- State Validation ---
-        balance = get_account_balance(exchange)
+        balance = await get_account_balance(exchange)
         base_currency = SYMBOL.split('/')[0]
         base_currency_balance = balance.get(base_currency, {}).get('free', 0)
         min_position_amount = 1
@@ -369,16 +370,16 @@ def run_bot_tick():
                 state = load_state()
         elif base_currency_balance >= min_position_amount:
             logger.warning("No local state, but found position on exchange. Syncing...")
-            sync_position_with_exchange(exchange, SYMBOL)
+            await sync_position_with_exchange(exchange, SYMBOL)
             state = load_state()
 
         # --- Fetch Data from WebSocket Cache ---
-        current_price = get_current_price(exchange, SYMBOL)
-        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch more for trend analysis
+        current_price = await get_current_price(exchange, SYMBOL)
+        candles_primary = await fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) # Fetch more for trend analysis
         # For the trend timeframe, we might still need a REST call if not watched by websocket,
         # or we can derive it from the primary candles if the library supports it.
         # For simplicity, we'll continue to fetch it via REST for now.
-        candles_trend = exchange.fetch_ohlcv(SYMBOL, TREND_TIMEFRAME, limit=100)
+        candles_trend = await exchange.fetch_ohlcv(SYMBOL, TREND_TIMEFRAME, limit=100)
 
         if not current_price or not candles_primary or len(candles_primary) < 50 or not candles_trend or len(candles_trend) < 50:
             signal, signal_reason = "Data Error", "Failed to fetch price or candle data for one or both timeframes."
@@ -387,7 +388,7 @@ def run_bot_tick():
             # --- Main Logic ---
             if state.get('has_position'):
                 # Note: handle_in_position still uses primary candles for SL/TP/Exit signals
-                signal, signal_reason, trade_executed, analysis_details = handle_in_position(exchange, state, current_price, candles_primary)
+                signal, signal_reason, trade_executed, analysis_details = await handle_in_position(exchange, state, current_price, candles_primary)
                 if trade_executed:
                     # If a trade was executed (sell), update the sell signal time
                     if signal == "Sold": # Assuming "Sold" is the signal when a sell trade occurs
@@ -400,7 +401,7 @@ def run_bot_tick():
                     return # Bot tick is done for now
             else:
                 # Pass the state to handle_no_position
-                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend)
+                signal, signal_reason, analysis_details = await handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend)
                 # If a buy signal was generated, update the buy signal time
                 if signal == "Buy": # Assuming "Buy" is the signal when a buy trade occurs
                     last_buy_signal_time = datetime.now().isoformat()
@@ -424,7 +425,7 @@ def run_bot_tick():
                     quote_currency = SYMBOL.split('/')[1]
                     amount_usdt = balance.get(quote_currency, {}).get('free', 0)
                     if amount_usdt >= MIN_TRADE_USDT:
-                        buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+                        buy_order = await create_market_buy_order(exchange, SYMBOL, amount_usdt)
                         if buy_order:
                             new_state = load_state()
                             new_state['has_position'] = True
@@ -468,7 +469,7 @@ def run_bot_tick():
                 if re_evaluate_sell:
                     logger.info("Expired SELL signal still valid. Attempting re-exit.")
                     # Attempt to sell again (logic from execute_sell_and_record_trade)
-                    if execute_sell_and_record_trade(exchange, state, "Re-Entry Sell Signal", current_price):
+                    if await execute_sell_and_record_trade(exchange, state, "Re-Entry Sell Signal", current_price):
                         signal, signal_reason, analysis_details = "Re-Entry Sell", re_eval_details, re_eval_details
                     else:
                         signal, signal_reason, analysis_details = "Re-Entry Sell Failed", "Could not execute re-entry sell order.", re_eval_details
