@@ -46,7 +46,7 @@
                         <template x-for="asset in Object.keys(balance)" :key="asset">
                             <div class="flex justify-between items-center">
                                 <span class="font-bold" x-text="asset"></span>
-                                <span class="font-mono" x-text="balance[asset] && balance[asset].total ? parseFloat(balance[asset].total).toFixed(4) : 'N/A'"></span>
+                                <span class="font-mono" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
                             </div>
                         </template>
                     </div>
@@ -69,9 +69,9 @@
                     <h2 class="text-xl font-semibold mb-2">Live Signal & Candles</h2>
                     <div class="flex items-center space-x-2 mb-1">
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
-                        <span class="text-lg" x-text="signal"></span>
+                        <span class="text-lg" x-text="signal + (signalReason && signalReason !== 'N/A' ? ' (' + signalReason + ')' : '')"></span>
                     </div>
-                    <p class="text-xs text-gray-400 mb-2" x-text="signalReason"></p>
+                    <!-- Removed separate signalReason paragraph as it's now combined with signal -->
                     
                     <!-- New Analysis Details Block -->
                     <div class="bg-gray-900/50 p-2 rounded-md mb-3">
