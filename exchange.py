@@ -38,8 +38,14 @@ def get_exchange():
     return exchange
 
 def start_websocket_client():
-    """Starts the global WebSocket client."""
+    """Starts the global WebSocket client and waits for it to be initialized."""
     websocket_client.start()
+    logger.info("Waiting for WebSocket client to initialize...")
+    initialized = websocket_client.initialized.wait(timeout=30) # Wait for up to 30 seconds
+    if initialized:
+        logger.info("WebSocket client initialized successfully.")
+    else:
+        logger.error("WebSocket client failed to initialize within the timeout period.")
 
 def stop_websocket_client():
     """Stops the global WebSocket client."""

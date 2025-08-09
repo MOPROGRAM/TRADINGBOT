@@ -19,6 +19,7 @@ class BinanceWebSocketClient:
         self.lock = threading.Lock() # For thread-safe access to data
         self.websocket_threads = []
         self.running = False
+        self.initialized = threading.Event() # Event to signal when the first ticker is received
 
     async def _connect_kline_websocket(self, interval: str):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@kline_{interval}"
@@ -66,6 +67,8 @@ class BinanceWebSocketClient:
                             with self.lock:
                                 self.ticker_data['last_price'] = float(data['c'])
                                 self.ticker_data['timestamp'] = data['E'] # Event time
+                                if not self.initialized.is_set():
+                                    self.initialized.set() # Signal that we have received the first ticker
                                 # logger.debug(f"Received ticker: {self.ticker_data['last_price']}")
             except websockets.exceptions.ConnectionClosed:
                 logger.warning(f"Ticker WebSocket for {self.symbol} closed. Reconnecting in 5s...")
