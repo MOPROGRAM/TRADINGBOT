@@ -4,7 +4,7 @@ import json
 import time
 import threading
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -29,36 +29,34 @@ API_CACHE = None
 LAST_API_CALL_TIME = 0
 CACHE_DURATION_SECONDS = 10 # Cache the response for 10 seconds
 
-async def run_bot_in_background():
+def run_bot_in_background():
     """
     A simple threading background task to run the bot tick periodically.
     This runs in a separate thread to avoid blocking the FastAPI event loop.
     """
     # Add a more significant delay to ensure the web server starts up and becomes healthy
     # before the bot's first run. This is critical for platforms like Render.
-    await asyncio.sleep(20) # Initial delay for server startup
+    time.sleep(20) # Initial delay for server startup
     
     while True:
         try:
             logger.info("Running bot tick from background thread...")
-            await run_bot_tick()
+            run_bot_tick()
             
             # After running the bot tick, fetch the latest status and broadcast it
             # This needs to be awaited, so the background task must be async
-            latest_status = await get_status() # Call the existing synchronous get_status
             # No manager.broadcast as websockets are removed
             
         except Exception as e:
             logger.error(f"An error occurred in the bot background thread: {e}", exc_info=True)
-        await asyncio.sleep(POLL_SECONDS) # Use asyncio.sleep for async functions
-
-import asyncio # Import asyncio for async operations
+        time.sleep(POLL_SECONDS) # Use time.sleep for synchronous functions
 
 @app.on_event("startup")
-async def startup_event():
+def startup_event():
     logger.info("Starting bot in a background task...")
-    # Use asyncio.create_task for async background tasks in FastAPI
-    asyncio.create_task(run_bot_in_background())
+    # Use threading.Thread for synchronous background tasks in FastAPI
+    thread = threading.Thread(target=run_bot_in_background, daemon=True)
+    thread.start()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="web/static"), name="static")
@@ -90,7 +88,7 @@ def get_live_logs():
 
 # Make the status endpoint synchronous
 @app.get("/api/status")
-async def get_status():
+def get_status():
     global API_CACHE, LAST_API_CALL_TIME
     
     # Check if a valid cache is available
@@ -118,13 +116,13 @@ async def get_status():
 
     try:
         logger.info("API: Fetching current price...")
-        current_price = await get_current_price(exchange, SYMBOL)
+        current_price = get_current_price(exchange, SYMBOL)
     except Exception as e:
         logger.error(f"API: Failed to get current price: {e}", exc_info=True)
 
     try:
         logger.info("API: Fetching account balance...")
-        balance = await get_account_balance(exchange)
+        balance = get_account_balance(exchange)
     except Exception as e:
         logger.error(f"API: Failed to get account balance: {e}", exc_info=True)
 
@@ -213,7 +211,7 @@ async def get_status():
                         # Try to get price for conversion
                         try:
                             pair = f"{currency}/USDT"
-                            price_ticker = await exchange.fetch_ticker(pair)
+                            price_ticker = exchange.fetch_ticker(pair)
                             price_in_usdt = price_ticker['last']
                             total_balance_usdt += free_amount * price_in_usdt
                         except Exception as e:
