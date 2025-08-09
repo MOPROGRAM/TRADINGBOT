@@ -66,7 +66,7 @@
                     <h2 class="text-xl font-semibold mb-2">Live Signal & Candles</h2>
                     <div class="flex items-center space-x-2 mb-1">
                         <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
-                        <span class="text-lg" x-text="signal"></span>
+                        <span class="text-lg" x-text="signal + (signalReason && signalReason !== 'N/A' ? ' (' + signalReason + ')' : '')"></span>
                     </div>
                     
                     <!-- Analysis Details Block - now always visible and directly below the signal -->
