@@ -247,7 +247,7 @@ def get_status():
             "total_pnl": total_pnl,
             "signal": bot_status.get("signal", "Initializing"),
             "signal_reason": bot_status.get("signal_reason", "Waiting for bot to start..."),
-            "analysis_details": bot_status.get("analysis_details", "Waiting for data..."), # Add this line
+            "analysis_details": str(bot_status.get("analysis_details", "Waiting for data...")), # Ensure it's a string
             "strategy_params": strategy_params,
             "live_candles": bot_status.get("live_candles", []),
             "status_messages": [], # Status messages are now handled by the bot's log/state
