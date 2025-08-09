@@ -56,11 +56,12 @@ def fetch_candles(exchange, symbol, timeframe, limit=100):
     Returns the latest candles, primarily from WebSocket cache, with REST API fallback.
     """
     candles = websocket_client.get_kline_data(timeframe)
-    if candles and len(candles) >= limit:
+    if candles: # Use WebSocket cache if any data is available
         # logger.debug(f"Fetched {len(candles)} {timeframe} candles from WebSocket cache.")
-        return list(candles)[-limit:] # Return the last 'limit' candles
+        # Return the last 'limit' candles if available, otherwise all available candles
+        return list(candles)[-limit:] if len(candles) >= limit else list(candles)
     
-    logger.warning(f"WebSocket cache for {timeframe} candles is empty or insufficient. Falling back to REST API.")
+    logger.warning(f"WebSocket cache for {timeframe} candles is empty. Falling back to REST API.")
     try:
         # Fallback to REST API if WebSocket cache is not ready or insufficient
         rest_candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
