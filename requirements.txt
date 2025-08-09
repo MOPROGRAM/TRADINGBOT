@@ -10,3 +10,4 @@ gunicorn
 pandas-ta
 scikit-learn
 joblib
+websockets
