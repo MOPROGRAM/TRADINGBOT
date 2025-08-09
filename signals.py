@@ -136,30 +136,22 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
     last_ema_trend_15min = df_15min['ema_trend'].iloc[-1]
     last_ema_trend_1h = df_trend['ema_trend'].iloc[-1]
 
-    buy_signal_triggered = False
+    # --- Condition Checks ---
+    # Each condition is now evaluated independently and contributes to the analysis details.
+    cond1_rsi_in_range = BUY_RSI_LEVEL < last_rsi_primary < BUY_RSI_UPPER_LEVEL
+    analysis_details.append(f"{'✅' if cond1_rsi_in_range else '❌'} RSI Range: {last_rsi_primary:.2f} (Target: {BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL})")
 
-    # Condition 1: RSI within buy range
-    if BUY_RSI_LEVEL < last_rsi_primary < BUY_RSI_UPPER_LEVEL:
-        buy_signal_triggered = True
-        analysis_details.append(f"Primary RSI ({last_rsi_primary:.2f}) is within buy range ({BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL})")
+    cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary > last_ema_long_primary
+    analysis_details.append(f"{'✅' if cond2_ema_crossover else '❌'} EMA Crossover: {last_ema_short_primary:.4f} > {last_ema_long_primary:.4f}")
 
-    # Condition 2: EMA Crossover (short EMA crosses above long EMA) on primary timeframe
-    if prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary > last_ema_long_primary:
-        buy_signal_triggered = True
-        analysis_details.append(f"Primary EMA Short ({last_ema_short_primary:.4f}) crossed above EMA Long ({last_ema_long_primary:.4f})")
+    cond3_price_above_trend = last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h
+    analysis_details.append(f"{'✅' if cond3_price_above_trend else '❌'} Trend Confirmation: Price {last_close_primary:.4f} > 15m EMA {last_ema_trend_15min:.4f} & 1h EMA {last_ema_trend_1h:.4f}")
 
-    # Condition 3: Price above Trend EMA on multiple timeframes (confirmation of uptrend)
-    if last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h:
-        if not buy_signal_triggered: # Only add if not already triggered by other conditions
-            buy_signal_triggered = True
-            analysis_details.append(f"Price ({last_close_primary:.4f}) is above 15-min Trend EMA ({last_ema_trend_15min:.4f}) and 1-hour Trend EMA ({last_ema_trend_1h:.4f})")
-        else:
-            analysis_details.append(f"Confirmed by Price ({last_close_primary:.4f}) above 15-min Trend EMA ({last_ema_trend_15min:.4f}) and 1-hour Trend EMA ({last_ema_trend_1h:.4f})")
+    # A buy signal is triggered if at least two of the three conditions are met.
+    # This provides more flexibility than requiring all conditions to be true.
+    buy_signal_triggered = (cond1_rsi_in_range + cond2_ema_crossover + cond3_price_above_trend) >= 2
 
-    if buy_signal_triggered:
-        return True, " | ".join(analysis_details)
-    else:
-        return False, "No buy signal."
+    return buy_signal_triggered, " | ".join(analysis_details)
 
 def check_sell_signal(candles):
     """
@@ -197,39 +189,28 @@ def check_sell_signal(candles):
     prev_ema_short = df['ema_short'].iloc[-2]
     prev_ema_long = df['ema_long'].iloc[-2]
 
-    sell_signal_triggered = False
+    # --- Condition Checks ---
+    cond1_rsi_overbought = last_rsi > EXIT_RSI_LEVEL
+    analysis_details.append(f"{'✅' if cond1_rsi_overbought else '❌'} RSI Overbought: {last_rsi:.2f} > {EXIT_RSI_LEVEL}")
 
-    # Condition 1: RSI overbought exit
-    if last_rsi > EXIT_RSI_LEVEL:
-        sell_signal_triggered = True
-        analysis_details.append(f"RSI ({last_rsi:.2f}) > Exit Level ({EXIT_RSI_LEVEL})")
+    cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
+    analysis_details.append(f"{'✅' if cond2_ema_crossunder else '❌'} EMA Crossunder: {last_ema_short:.4f} < {last_ema_long:.4f}")
 
-    # Condition 2: EMA Crossover (short EMA crosses below long EMA)
-    if prev_ema_short > prev_ema_long and last_ema_short < last_ema_long:
-        sell_signal_triggered = True
-        analysis_details.append(f"EMA Short ({last_ema_short:.4f}) crossed below EMA Long ({last_ema_long:.4f})")
+    cond3_price_below_trend = last_close < last_ema_trend
+    analysis_details.append(f"{'✅' if cond3_price_below_trend else '❌'} Trend Breakdown: Price {last_close:.4f} < Trend EMA {last_ema_trend:.4f}")
 
-    # Condition 3: Price below Trend EMA (confirmation of downtrend)
-    if last_close < last_ema_trend:
-        if not sell_signal_triggered: # Only add if not already triggered by other conditions
-            sell_signal_triggered = True
-            analysis_details.append(f"Price ({last_close:.4f}) is below Trend EMA ({last_ema_trend:.4f})")
-        else:
-            analysis_details.append(f"Confirmed by Price ({last_close:.4f}) below Trend EMA ({last_ema_trend:.4f})")
-
-    # Condition 4: Reversal Drop from recent high
-    # Look back a reasonable period for a recent high (e.g., 20 candles)
     lookback_period = 20
+    cond4_reversal_drop = False
     if len(df) >= lookback_period:
         recent_high = df['high'].iloc[-lookback_period:-1].max()
         if recent_high and last_close < recent_high * (1 - REVERSAL_DROP_PERCENTAGE):
-            sell_signal_triggered = True
-            analysis_details.append(f"Price dropped {REVERSAL_DROP_PERCENTAGE*100:.1f}% from recent high ({recent_high:.4f})")
+            cond4_reversal_drop = True
+    analysis_details.append(f"{'✅' if cond4_reversal_drop else '❌'} Reversal Drop: Price dropped from recent high")
 
-    if sell_signal_triggered:
-        return True, " | ".join(analysis_details)
-    else:
-        return False, "No sell signal."
+    # A sell signal is triggered if any of the primary exit conditions are met (RSI, EMA cross, Reversal)
+    sell_signal_triggered = cond1_rsi_overbought or cond2_ema_crossunder or cond4_reversal_drop
+
+    return sell_signal_triggered, " | ".join(analysis_details)
 
 def check_sl_tp(current_price, state, sl_price, tp_price, trailing_sl_price, trailing_tp_activation_price):
     """
