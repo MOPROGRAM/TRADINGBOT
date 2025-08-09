@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 API_KEY = os.getenv('BINANCE_API_KEY')
 API_SECRET = os.getenv('BINANCE_API_SECRET')
-DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true')
+DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
 TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # Ensure this is defined for WebSocket client
