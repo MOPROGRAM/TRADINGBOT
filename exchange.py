@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 API_KEY = os.getenv('BINANCE_API_KEY')
 API_SECRET = os.getenv('BINANCE_API_SECRET')
-DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
+DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true')
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
 TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # Ensure this is defined for WebSocket client
@@ -117,8 +117,13 @@ def get_account_balance(exchange):
             base_currency: {"free": 0.0, "used": 0.0, "total": 0.0} # Start with no base currency
         }
     try:
-        balance = exchange.fetch_balance()
-        return balance['total'] # Return the 'total' balances directly, which is a dict of asset:amount
+        balance_data = exchange.fetch_balance()
+        # Ensure balance_data['total'] is a dictionary before returning
+        if isinstance(balance_data.get('total'), dict):
+            return balance_data['total'] # Return the 'total' balances directly, which is a dict of asset:amount
+        else:
+            logger.error(f"fetch_balance returned unexpected type for 'total': {type(balance_data.get('total'))}. Returning empty dict.")
+            return {}
     except ccxt.BaseError as e:
         logger.error(f"Error fetching account balance: {e}")
         return {}
