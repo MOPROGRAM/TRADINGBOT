@@ -1,8 +1,6 @@
 import os
 import ccxt
-import ccxt.pro as ccxtpro
 import asyncio
-import threading
 from dotenv import load_dotenv
 from logger import get_logger
 import time
@@ -16,16 +14,9 @@ DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
 TIMEFRAME = os.getenv('TIMEFRAME', '5m')
 
-# --- Global state for live data from WebSocket ---
-live_price = {'price': None, 'timestamp': None}
-live_candles = []
-# A lock to ensure thread-safe access to the global variables
-data_lock = threading.Lock()
-
 def get_exchange():
     """Initializes the exchange object."""
-    # Use the async-supported exchange class from ccxt.pro
-    exchange = ccxtpro.binance({
+    exchange = ccxt.binance({
         'apiKey': API_KEY,
         'secret': API_SECRET,
         'options': {
@@ -37,94 +28,26 @@ def get_exchange():
         logger.info("Exchange is in SANDBOX mode.")
     return exchange
 
-async def watch_trades_and_candles(exchange):
-    """The main WebSocket loop to watch trades and candles."""
-    global live_price, live_candles
-    
-    while True:
-        try:
-            # Watch both streams concurrently
-            trades, candles = await asyncio.gather(
-                exchange.watch_trades(SYMBOL),
-                exchange.watch_ohlcv(SYMBOL, TIMEFRAME)
-            )
-            
-            # --- Process Trades ---
-            if trades:
-                latest_trade = trades[-1]
-                with data_lock:
-                    live_price['price'] = latest_trade['price']
-                    live_price['timestamp'] = latest_trade['timestamp']
-                logger.info(f"Live price updated: {live_price['price']:.4f}")
-
-            # --- Process Candles ---
-            if candles:
-                with data_lock:
-                    # This gives us the full list of candles from the stream
-                    live_candles = candles
-                logger.info(f"Live candles updated. Total candles: {len(live_candles)}")
-
-        except Exception as e:
-            logger.error(f"WebSocket error: {e}. Reconnecting in 15 seconds...")
-            await asyncio.sleep(15)
-            # The loop will automatically try to reconnect on the next iteration
-
-def start_websocket_client():
-    """Starts the WebSocket client in a separate thread."""
-    def loop_in_thread():
-        logger.info("WebSocket thread started.")
-        exchange = get_exchange()
-        # Set a new asyncio event loop for this thread
-        asyncio.set_event_loop(asyncio.new_event_loop())
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(watch_trades_and_candles(exchange))
-        # This part is reached if the loop exits, which it shouldn't in normal operation
-        loop.run_until_complete(exchange.close())
-        logger.info("WebSocket thread finished.")
-
-    thread = threading.Thread(target=loop_in_thread, daemon=True)
-    thread.start()
-    logger.info("WebSocket client initiated in a background thread.")
-    # Give the websocket a moment to connect and fetch initial data
-    time.sleep(10)
-
-# --- Modified functions to use live data ---
-
 async def fetch_candles(exchange, symbol, timeframe, limit=100):
     """
-    Returns the latest candles from the live WebSocket data.
-    The exchange, symbol, timeframe, and limit arguments are kept for compatibility
-    with the existing bot logic, but the data comes from the global state.
+    Returns the latest candles from the REST API.
     """
-    with data_lock:
-        if not live_candles:
-            logger.warning("`fetch_candles` called but live_candles is empty. Waiting for WebSocket data.")
-            # Fallback to REST API for initial fetch if needed, though start_websocket_client has a sleep timer
-            try:
-                return await exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-            except Exception as e:
-                logger.error(f"Fallback fetch_ohlcv failed: {e}")
-                return []
-        # Return a copy to avoid modification issues
-        return list(live_candles)
+    try:
+        return await exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    except Exception as e:
+        logger.error(f"Failed to fetch_ohlcv: {e}")
+        return []
 
 async def get_current_price(exchange, symbol):
     """
-    Returns the latest price from the live WebSocket data.
+    Returns the latest price from the REST API.
     """
-    with data_lock:
-        if live_price['price'] is None:
-            logger.warning("`get_current_price` called but live_price is None. Waiting for WebSocket data.")
-            # Fallback for initial price
-            try:
-                ticker = await exchange.fetch_ticker(symbol)
-                return ticker['last']
-            except Exception as e:
-                logger.error(f"Fallback fetch_ticker failed: {e}")
-                return None
-        return live_price['price']
-
-# --- Unchanged functions below (for now) ---
+    try:
+        ticker = await exchange.fetch_ticker(symbol)
+        return ticker['last']
+    except Exception as e:
+        logger.error(f"Failed to fetch_ticker: {e}")
+        return None
 
 async def create_market_buy_order(exchange, symbol, amount_usdt):
     if DRY_RUN:
@@ -142,7 +65,6 @@ async def create_market_buy_order(exchange, symbol, amount_usdt):
         }
 
     try:
-        # Using the regular (non-async) method for a one-off action
         order = await exchange.create_market_buy_order_with_cost(symbol, amount_usdt)
         logger.info(f"Created market buy order: {order}")
         return order

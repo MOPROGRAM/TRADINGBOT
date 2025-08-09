@@ -509,8 +509,3 @@ async def run_bot_tick():
 
 # Initialize parameters on startup
 initialize_strategy_params()
-
-# --- Start WebSocket Client ---
-logger.info("Starting WebSocket client...")
-start_websocket_client()
-logger.info("WebSocket client started.")
