@@ -147,9 +147,8 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
     cond3_price_above_trend = last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h
     analysis_details.append(f"{'✅' if cond3_price_above_trend else '❌'} Trend Confirmation: Price {last_close_primary:.4f} > 15m EMA {last_ema_trend_15min:.4f} & 1h EMA {last_ema_trend_1h:.4f}")
 
-    # A buy signal is triggered if at least two of the three conditions are met.
-    # This provides more flexibility than requiring all conditions to be true.
-    buy_signal_triggered = (cond1_rsi_in_range + cond2_ema_crossover + cond3_price_above_trend) >= 2
+    # A buy signal is triggered only if all three conditions are met.
+    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend
 
     return buy_signal_triggered, " | ".join(analysis_details)
 
