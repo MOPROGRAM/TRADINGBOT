@@ -160,10 +160,8 @@
         </div>
 
         <!-- Right Column (Chart) -->
-        <div class="flex-1 card p-0 flex flex-col">
-            <div class="p-4 h-full w-full">
-                <div id="tradingview_chart" class="h-full w-full"></div>
-            </div>
+        <div class="flex-1 card p-4 flex flex-col">
+            <div id="tradingview_chart" class="flex-1"></div>
         </div>
     </div>
     </div>
@@ -242,7 +240,8 @@
                 },
 
                 loadTradingViewChart() {
-                    new TradingView.widget({
+                    const isMobile = window.innerWidth < 1024; // lg breakpoint
+                    const widgetOptions = {
                         "autosize": true,
                         "symbol": `BINANCE:{{ symbol.replace('/', '') }}`,
                         "interval": "5",
@@ -254,7 +253,22 @@
                         "hide_side_toolbar": false,
                         "allow_symbol_change": true,
                         "container_id": "tradingview_chart"
-                    });
+                    };
+
+                    if (isMobile) {
+                        // Set a substantial height for the chart on mobile
+                        const chartHeight = Math.max(400, window.innerHeight * 0.6);
+                        widgetOptions.height = chartHeight;
+                        widgetOptions.autosize = false;
+                        
+                        // Also set the container height
+                        const chartContainer = document.getElementById('tradingview_chart');
+                        if(chartContainer) {
+                            chartContainer.style.height = `${chartHeight}px`;
+                        }
+                    }
+
+                    new TradingView.widget(widgetOptions);
                 }
             }
         }
