@@ -242,7 +242,8 @@
                 },
 
                 loadTradingViewChart() {
-                    new TradingView.widget({
+                    const isMobile = window.innerWidth < 1024; // lg breakpoint
+                    const widgetOptions = {
                         "autosize": true,
                         "symbol": `BINANCE:{{ symbol.replace('/', '') }}`,
                         "interval": "5",
@@ -254,7 +255,14 @@
                         "hide_side_toolbar": false,
                         "allow_symbol_change": true,
                         "container_id": "tradingview_chart"
-                    });
+                    };
+
+                    if (isMobile) {
+                        widgetOptions.height = window.innerHeight * 0.7;
+                        widgetOptions.autosize = false;
+                    }
+
+                    new TradingView.widget(widgetOptions);
                 }
             }
         }
