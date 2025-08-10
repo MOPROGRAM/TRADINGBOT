@@ -145,16 +145,25 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
         analysis_details.append(f"❌ RSI ({last_rsi_primary:.2f}) is outside the buy zone ({BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL}).")
 
     cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary >= last_ema_long_primary
-    if cond2_ema_crossover:
-        analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short EMA {last_ema_short_primary:.4f} > Long EMA {last_ema_long_primary:.4f}).")
+    # Corrected logic for EMA crossover analysis text
+    if last_ema_short_primary > last_ema_long_primary:
+        if cond2_ema_crossover:
+            analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short EMA {last_ema_short_primary:.4f} > Long EMA {last_ema_long_primary:.4f}).")
+        else:
+            analysis_details.append(f"✅ Short EMA ({last_ema_short_primary:.4f}) is above Long EMA ({last_ema_long_primary:.4f}), but no recent crossover.")
     else:
-        analysis_details.append(f"❌ No bullish EMA crossover (Short EMA {last_ema_short_primary:.4f} is not above Long EMA {last_ema_long_primary:.4f}).")
+        analysis_details.append(f"❌ Short EMA ({last_ema_short_primary:.4f}) is not above Long EMA ({last_ema_long_primary:.4f}).")
+
 
     cond3_price_above_trend = last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h
     if cond3_price_above_trend:
         analysis_details.append(f"✅ Price ({last_close_primary:.4f}) is above the 15m & 1h trend EMAs.")
     else:
-        analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is below the 15m ({last_ema_trend_15min:.4f}) or 1h ({last_ema_trend_1h:.4f}) trend EMA.")
+        # Provide more specific feedback on which trend check failed
+        if last_close_primary <= last_ema_trend_15min:
+            analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is not above the 15m trend EMA ({last_ema_trend_15min:.4f}).")
+        if last_close_primary <= last_ema_trend_1h:
+            analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is not above the 1h trend EMA ({last_ema_trend_1h:.4f}).")
 
     # A buy signal is triggered only if all three conditions are met.
     buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend
@@ -205,10 +214,13 @@ def check_sell_signal(candles):
         analysis_details.append(f"❌ RSI ({last_rsi:.2f}) is not overbought.")
 
     cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
-    if cond2_ema_crossunder:
-        analysis_details.append(f"✅ Bearish EMA crossunder confirmed (Short EMA {last_ema_short:.4f} < Long EMA {last_ema_long:.4f}).")
+    if last_ema_short < last_ema_long:
+        if cond2_ema_crossunder:
+            analysis_details.append(f"✅ Bearish EMA crossunder confirmed (Short EMA {last_ema_short:.4f} < Long EMA {last_ema_long:.4f}).")
+        else:
+            analysis_details.append(f"✅ Short EMA ({last_ema_short:.4f}) is below Long EMA ({last_ema_long:.4f}), but no recent crossunder.")
     else:
-        analysis_details.append(f"❌ No bearish EMA crossunder.")
+        analysis_details.append(f"❌ Short EMA ({last_ema_short:.4f}) is not below Long EMA ({last_ema_long:.4f}).")
 
     cond3_price_below_trend = last_close < last_ema_trend
     if cond3_price_below_trend:
