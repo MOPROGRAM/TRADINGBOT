@@ -9,11 +9,11 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="bg-gray-900 text-gray-200 font-sans" x-data="botDashboard()" x-init="init()">
-    <div class="flex flex-col lg:flex-row gap-6 p-4">
-        
-        <!-- Left Column -->
-        <div class="lg:w-96 flex-shrink-0 flex flex-col gap-6">
-            <div class="flex flex-col gap-6 lg:overflow-y-auto lg:h-screen trade-history-scrollbar">
+    <div class="max-w-screen-2xl mx-auto">
+        <div class="flex flex-col lg:flex-row gap-6 p-4">
+            
+            <!-- Left Column -->
+            <div class="lg:w-96 flex-shrink-0 flex flex-col gap-6 lg:h-screen lg:overflow-y-auto trade-history-scrollbar">
                 <!-- Header -->
                 <div class="flex-shrink-0">
                     <h1 class="text-2xl md:text-3xl font-bold" x-text="symbol"></h1>
@@ -158,14 +158,14 @@
                 </div>
             </div>
         </div>
-        </div>
 
         <!-- Right Column (Chart) -->
-        <div class="flex-1 card p-2 flex flex-col min-h-[60vh] lg:min-h-full">
+        <div class="flex-1 card p-2 flex flex-col h-[70vh] lg:h-auto">
             <div class="tradingview-widget-container h-full w-full">
               <div id="tradingview_chart" class="h-full w-full"></div>
             </div>
         </div>
+    </div>
     </div>
 
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
