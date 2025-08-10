@@ -139,13 +139,22 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
     # --- Condition Checks ---
     # Each condition is now evaluated independently and contributes to the analysis details.
     cond1_rsi_in_range = BUY_RSI_LEVEL < last_rsi_primary < BUY_RSI_UPPER_LEVEL
-    analysis_details.append(f"{'✅' if cond1_rsi_in_range else '❌'} RSI Range: {last_rsi_primary:.2f} (Target: {BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL})")
+    if cond1_rsi_in_range:
+        analysis_details.append(f"✅ RSI ({last_rsi_primary:.2f}) is in the buy zone ({BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL}).")
+    else:
+        analysis_details.append(f"❌ RSI ({last_rsi_primary:.2f}) is outside the buy zone ({BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL}).")
 
     cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary >= last_ema_long_primary
-    analysis_details.append(f"{'✅' if cond2_ema_crossover else '❌'} EMA Crossover: {last_ema_short_primary:.4f} > {last_ema_long_primary:.4f}")
+    if cond2_ema_crossover:
+        analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short EMA {last_ema_short_primary:.4f} > Long EMA {last_ema_long_primary:.4f}).")
+    else:
+        analysis_details.append(f"❌ No bullish EMA crossover (Short EMA {last_ema_short_primary:.4f} is not above Long EMA {last_ema_long_primary:.4f}).")
 
     cond3_price_above_trend = last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h
-    analysis_details.append(f"{'✅' if cond3_price_above_trend else '❌'} Trend Confirmation: Price {last_close_primary:.4f} > 15m EMA {last_ema_trend_15min:.4f} & 1h EMA {last_ema_trend_1h:.4f}")
+    if cond3_price_above_trend:
+        analysis_details.append(f"✅ Price ({last_close_primary:.4f}) is above the 15m & 1h trend EMAs.")
+    else:
+        analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is below the 15m ({last_ema_trend_15min:.4f}) or 1h ({last_ema_trend_1h:.4f}) trend EMA.")
 
     # A buy signal is triggered only if all three conditions are met.
     buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend
@@ -190,13 +199,22 @@ def check_sell_signal(candles):
 
     # --- Condition Checks ---
     cond1_rsi_overbought = last_rsi > EXIT_RSI_LEVEL
-    analysis_details.append(f"{'✅' if cond1_rsi_overbought else '❌'} RSI Overbought: {last_rsi:.2f} > {EXIT_RSI_LEVEL}")
+    if cond1_rsi_overbought:
+        analysis_details.append(f"✅ RSI ({last_rsi:.2f}) is overbought (>{EXIT_RSI_LEVEL}).")
+    else:
+        analysis_details.append(f"❌ RSI ({last_rsi:.2f}) is not overbought.")
 
     cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
-    analysis_details.append(f"{'✅' if cond2_ema_crossunder else '❌'} EMA Crossunder: {last_ema_short:.4f} < {last_ema_long:.4f}")
+    if cond2_ema_crossunder:
+        analysis_details.append(f"✅ Bearish EMA crossunder confirmed (Short EMA {last_ema_short:.4f} < Long EMA {last_ema_long:.4f}).")
+    else:
+        analysis_details.append(f"❌ No bearish EMA crossunder.")
 
     cond3_price_below_trend = last_close < last_ema_trend
-    analysis_details.append(f"{'✅' if cond3_price_below_trend else '❌'} Trend Breakdown: Price {last_close:.4f} < Trend EMA {last_ema_trend:.4f}")
+    if cond3_price_below_trend:
+        analysis_details.append(f"✅ Price ({last_close:.4f}) broke below trend EMA ({last_ema_trend:.4f}).")
+    else:
+        analysis_details.append(f"❌ Price ({last_close:.4f}) is still above trend EMA ({last_ema_trend:.4f}).")
 
     lookback_period = 20
     cond4_reversal_drop = False
@@ -204,7 +222,10 @@ def check_sell_signal(candles):
         recent_high = df['high'].iloc[-lookback_period:-1].max()
         if recent_high and last_close < recent_high * (1 - REVERSAL_DROP_PERCENTAGE):
             cond4_reversal_drop = True
-    analysis_details.append(f"{'✅' if cond4_reversal_drop else '❌'} Reversal Drop: Price dropped from recent high")
+    if cond4_reversal_drop:
+        analysis_details.append(f"✅ Price dropped more than {REVERSAL_DROP_PERCENTAGE:.1%} from recent high.")
+    else:
+        analysis_details.append(f"❌ No significant price drop from recent high.")
 
     # A sell signal is triggered if any of the primary exit conditions are met (RSI, EMA cross, Reversal)
     sell_signal_triggered = cond1_rsi_overbought or cond2_ema_crossunder or cond4_reversal_drop

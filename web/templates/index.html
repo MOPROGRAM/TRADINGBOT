@@ -8,17 +8,15 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="bg-gray-900 text-gray-200 font-sans" x-data="botDashboard()" x-init="init()">
-    <div class="container mx-auto p-4">
+<body class="bg-gray-900 text-gray-200 font-sans h-full" x-data="botDashboard()" x-init="init()">
+    <div class="container mx-auto p-4 flex flex-col h-full">
         
         <!-- Header Row -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <div>
-                <h1 class="text-3xl font-bold" x-text="symbol"></h1>
-                <p class="text-gray-400">Real-time trading bot dashboard</p>
-            </div>
-            <div class="ws-status-bar">
-                <span class="text-sm font-semibold text-gray-300">Connections:</span>
+        <div class="flex-shrink-0">
+            <h1 class="text-3xl font-bold" x-text="symbol"></h1>
+            <p class="text-gray-400">Real-time trading bot dashboard</p>
+            <!-- Connections Bar -->
+            <div class="ws-status-bar mt-2">
                 <template x-for="(status, stream) in connectionStatus" :key="stream">
                     <div class="ws-status-item" :title="status">
                         <div class="ws-status-dot" :class="{
@@ -27,20 +25,20 @@
                             'bg-red-500': status === 'disconnected',
                             'bg-gray-500': status === 'stopped'
                         }"></div>
-                        <span class="text-xs text-gray-300" x-text="stream"></span>
+                        <span class="text-sm font-semibold" :class="status === 'connected' ? 'text-green-400' : 'text-gray-300'" x-text="stream"></span>
                     </div>
                 </template>
             </div>
         </div>
 
         <!-- Main Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 flex-grow">
             
             <!-- Left Column -->
-            <div class="lg:col-span-1 space-y-6">
+            <div class="lg:col-span-1 space-y-6 flex flex-col">
                 
                 <!-- Status & Price -->
-                <div class="card">
+                <div class="card flex-shrink-0">
                     <div class="flex justify-between items-center">
                         <div>
                             <h2 class="text-lg font-semibold text-gray-400">Status</h2>
@@ -57,7 +55,7 @@
                 </div>
 
                 <!-- Live Signal & Analysis -->
-                <div class="card">
+                <div class="card flex-shrink-0">
                     <h2 class="text-xl font-semibold mb-3">Live Signal & Analysis</h2>
                     <div class="bg-gray-900/50 p-3 rounded-md mb-3">
                         <div class="flex items-center space-x-3">
@@ -68,22 +66,19 @@
                             </div>
                         </div>
                     </div>
-                    <div class="signal-analysis-grid">
+                    <div class="space-y-2 text-sm">
                         <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
-                            <div class="signal-box" :class="{
-                                'border-green-500/50 bg-green-900/20': detail.includes('✅'),
-                                'border-red-500/50 bg-red-900/20': detail.includes('❌')
-                            }">
-                                <span class="label" x-text="detail.split(':')[0].replace('✅', '').replace('❌', '').trim()"></span>
-                                <span class="value" x-text="detail.split(':')[1]"></span>
-                            </div>
+                            <p x-text="detail" :class="{
+                                'text-green-400': detail.includes('✅'),
+                                'text-red-400': detail.includes('❌')
+                            }"></p>
                         </template>
                     </div>
                     <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
                 </div>
 
                 <!-- Position & Balance -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 flex-shrink-0">
                     <div class="card" x-show="hasPosition">
                         <h2 class="text-xl font-semibold mb-2">Open Position</h2>
                         <div class="space-y-2 text-sm">
@@ -108,17 +103,17 @@
                 </div>
 
                 <!-- Trade History -->
-                <div class="card">
-                    <div class="flex justify-between items-center mb-2">
+                <div class="card flex-grow flex flex-col min-h-0">
+                    <div class="flex justify-between items-center mb-2 flex-shrink-0">
                         <h2 class="text-xl font-semibold">Trade History</h2>
                         <div class="text-right">
                             <span class="text-sm text-gray-400">Total PnL</span>
                             <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
                         </div>
                     </div>
-                    <div class="max-h-96 overflow-y-auto trade-history-scrollbar">
+                    <div class="overflow-y-auto trade-history-scrollbar flex-grow">
                         <table class="w-full text-sm text-left trade-history-table">
-                            <thead class="text-xs text-gray-400 uppercase bg-gray-700/50 sticky top-0">
+                            <thead class="text-xs text-gray-400 uppercase bg-gray-800 sticky top-0">
                                 <tr>
                                     <th scope="col" class="px-2 py-2">Time</th>
                                     <th scope="col" class="px-2 py-2">Entry</th>
@@ -147,8 +142,8 @@
             </div>
 
             <!-- Right Column (Chart) -->
-            <div class="lg:col-span-2 card p-2 min-h-[600px]">
-                <div class="tradingview-widget-container h-full w-full">
+            <div class="lg:col-span-2 card p-2 flex flex-col">
+                <div class="tradingview-widget-container h-full w-full flex-grow">
                   <div id="tradingview_chart" class="h-full w-full"></div>
                 </div>
             </div>

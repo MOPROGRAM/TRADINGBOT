@@ -1,5 +1,6 @@
 /* General Body Style */
-body {
+html, body {
+    height: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
@@ -35,42 +36,12 @@ body {
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
-/* Signal Analysis Box Styling */
-.signal-analysis-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 0.5rem;
-}
-
-.signal-box {
-    border: 1px solid #374151; /* border-gray-700 */
-    padding: 0.5rem;
-    border-radius: 0.375rem; /* rounded-md */
-    font-size: 0.875rem; /* text-sm */
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    transition: all 0.2s ease-in-out;
-}
-
-.signal-box .label {
-    font-size: 0.75rem; /* text-xs */
-    color: #9ca3af; /* text-gray-400 */
-}
-
-.signal-box .value {
-    font-family: monospace;
-    font-weight: 600;
-}
-
 /* WebSocket Connection Status Bar */
 .ws-status-bar {
     display: flex;
     gap: 0.75rem;
     align-items: center;
-    background-color: #374151; /* bg-gray-700 */
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
+    padding: 0.25rem 0;
 }
 
 .ws-status-item {
