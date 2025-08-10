@@ -141,7 +141,7 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
     cond1_rsi_in_range = BUY_RSI_LEVEL < last_rsi_primary < BUY_RSI_UPPER_LEVEL
     analysis_details.append(f"{'✅' if cond1_rsi_in_range else '❌'} RSI Range: {last_rsi_primary:.2f} (Target: {BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL})")
 
-    cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary > last_ema_long_primary
+    cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary >= last_ema_long_primary
     analysis_details.append(f"{'✅' if cond2_ema_crossover else '❌'} EMA Crossover: {last_ema_short_primary:.4f} > {last_ema_long_primary:.4f}")
 
     cond3_price_above_trend = last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h

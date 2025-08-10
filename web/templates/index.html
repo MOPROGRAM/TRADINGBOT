@@ -8,104 +8,122 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="bg-gray-900 text-white font-sans" x-data="botDashboard()" x-init="init()">
+<body class="bg-gray-900 text-gray-200 font-sans" x-data="botDashboard()" x-init="init()">
     <div class="container mx-auto p-4">
         
+        <!-- Header Row -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold" x-text="symbol"></h1>
+                <p class="text-gray-400">Real-time trading bot dashboard</p>
+            </div>
+            <div class="ws-status-bar">
+                <span class="text-sm font-semibold text-gray-300">Connections:</span>
+                <template x-for="(status, stream) in connectionStatus" :key="stream">
+                    <div class="ws-status-item" :title="status">
+                        <div class="ws-status-dot" :class="{
+                            'bg-green-500': status === 'connected',
+                            'bg-yellow-500': status === 'connecting',
+                            'bg-red-500': status === 'disconnected',
+                            'bg-gray-500': status === 'stopped'
+                        }"></div>
+                        <span class="text-xs text-gray-300" x-text="stream"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
+            <!-- Left Column -->
             <div class="lg:col-span-1 space-y-6">
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-2xl font-bold mb-2" x-text="symbol"></h2>
-                    <p class="text-4xl font-mono mb-2" x-text="currentPrice"></p>
-                    <div class="flex items-center space-x-2">
-                        <span class="text-2xl" x-html="statusIcon"></span>
-                        <span class="text-lg" x-text="statusText"></span>
+                
+                <!-- Status & Price -->
+                <div class="card">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-400">Status</h2>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-2xl" x-html="statusIcon"></span>
+                                <span class="text-lg font-semibold" x-text="statusText"></span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <h2 class="text-lg font-semibold text-gray-400">Current Price</h2>
+                            <p class="text-2xl font-mono" x-text="currentPrice"></p>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">WebSocket Connections</h2>
-                    <div class="space-y-2 text-sm">
-                        <template x-for="(status, stream) in connectionStatus" :key="stream">
-                            <div class="flex justify-between items-center">
-                                <span class="capitalize" x-text="stream"></span>
-                                <span class="px-2 py-1 rounded-full text-xs font-bold"
-                                      :class="{
-                                          'bg-green-500 text-green-900': status === 'connected',
-                                          'bg-yellow-500 text-yellow-900': status === 'connecting',
-                                          'bg-red-500 text-red-900': status === 'disconnected',
-                                          'bg-gray-500 text-gray-900': status === 'stopped'
-                                      }"
-                                      x-text="status">
-                                </span>
+                <!-- Live Signal & Analysis -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-3">Live Signal & Analysis</h2>
+                    <div class="bg-gray-900/50 p-3 rounded-md mb-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-3xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
+                            <div>
+                                <p class="font-bold text-lg" x-text="signal"></p>
+                                <p class="text-sm text-gray-400" x-text="signalReason"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="signal-analysis-grid">
+                        <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
+                            <div class="signal-box" :class="{
+                                'border-green-500/50 bg-green-900/20': detail.includes('✅'),
+                                'border-red-500/50 bg-red-900/20': detail.includes('❌')
+                            }">
+                                <span class="label" x-text="detail.split(':')[0].replace('✅', '').replace('❌', '').trim()"></span>
+                                <span class="value" x-text="detail.split(':')[1]"></span>
                             </div>
                         </template>
                     </div>
+                    <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
                 </div>
 
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Account Balance</h2>
-                    <div class="space-y-2" x-show="Object.keys(balance).length > 0">
-                        <template x-for="asset in Object.keys(balance)" :key="asset">
-                            <div class="flex justify-between items-center">
-                                <span class="font-bold" x-text="asset"></span>
-                                <span class="font-mono" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
-                            </div>
-                        </template>
+                <!-- Position & Balance -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card" x-show="hasPosition">
+                        <h2 class="text-xl font-semibold mb-2">Open Position</h2>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between"><span>Entry Price:</span> <strong class="font-mono" x-text="position.entry_price"></strong></div>
+                            <div class="flex justify-between"><span>Size:</span> <strong class="font-mono" x-text="position.size"></strong></div>
+                            <div class="flex justify-between"><span>PnL:</span> <strong class="font-mono" x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></strong></div>
+                            <div class="flex justify-between text-xs text-gray-400 pt-1"><span>Timestamp:</span> <span x-text="position.timestamp"></span></div>
+                        </div>
                     </div>
-                     <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
-                </div>
-
-                <div class="bg-gray-800 p-4 rounded-lg shadow" x-show="hasPosition">
-                    <h2 class="text-xl font-semibold mb-2">Open Position</h2>
-                    <div class="space-y-1">
-                        <p><strong>Entry Price:</strong> <span x-text="position.entry_price"></span></p>
-                        <p><strong>Size:</strong> <span x-text="position.size"></span></p>
-                        <p><strong>PnL:</strong> <span x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></span></p>
-                        <p class="text-xs text-gray-400"><strong>Timestamp:</strong> <span x-text="position.timestamp"></span></p>
-                    </div>
-                </div>
-
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Live Signal & Analysis</h2>
-                    <div class="flex items-center space-x-2 mb-1">
-                        <span class="text-2xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
-                        <span class="text-lg" x-text="signal + (signalReason && signalReason !== 'N/A' ? ' (' + signalReason + ')' : '')"></span>
-                    </div>
-                    
-                    <div class="bg-gray-900/50 p-2 rounded-md mb-3">
-                        <h3 class="text-sm font-semibold text-gray-300 mb-1">Signal Analysis Breakdown:</h3>
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
-                                <div class="signal-box" :class="{
-                                    'border-green-500 bg-green-900/30': detail.includes('✅'),
-                                    'border-red-500 bg-red-900/30': detail.includes('❌')
-                                }">
-                                    <span x-text="detail.split(':')[0]"></span>
-                                    <span class="font-bold" x-text="detail.split(':')[1]"></span>
+                    <div class="card">
+                        <h2 class="text-xl font-semibold mb-2">Account Balance</h2>
+                        <div class="space-y-2 text-sm" x-show="Object.keys(balance).length > 0">
+                            <template x-for="asset in Object.keys(balance)" :key="asset">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold" x-text="asset"></span>
+                                    <span class="font-mono" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
                                 </div>
                             </template>
                         </div>
-                        <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
+                        <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                     </div>
                 </div>
 
-                <div class="bg-gray-800 p-4 rounded-lg shadow">
-                    <h2 class="text-xl font-semibold mb-2">Trade History</h2>
+                <!-- Trade History -->
+                <div class="card">
                     <div class="flex justify-between items-center mb-2">
-                        <span>Total PnL:</span>
-                        <span x-text="totalPnl" class="font-bold" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></span>
+                        <h2 class="text-xl font-semibold">Trade History</h2>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-400">Total PnL</span>
+                            <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
+                        </div>
                     </div>
-                    <div class="max-h-96 overflow-y-auto">
-                        <table class="w-full text-sm text-left">
-                            <thead class="text-xs text-gray-400 uppercase bg-gray-700">
+                    <div class="max-h-96 overflow-y-auto trade-history-scrollbar">
+                        <table class="w-full text-sm text-left trade-history-table">
+                            <thead class="text-xs text-gray-400 uppercase bg-gray-700/50 sticky top-0">
                                 <tr>
                                     <th scope="col" class="px-2 py-2">Time</th>
                                     <th scope="col" class="px-2 py-2">Entry</th>
                                     <th scope="col" class="px-2 py-2">Exit</th>
-                                    <th scope="col" class="px-2 py-2">Size</th>
                                     <th scope="col" class="px-2 py-2">PnL %</th>
-                                    <th scope="col" class="px-2 py-2">Status</th>
                                     <th scope="col" class="px-2 py-2">Reason</th>
                                 </tr>
                             </thead>
@@ -115,16 +133,12 @@
                                         <td class="px-2 py-2 text-xs" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></td>
                                         <td class="px-2 py-2 font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></td>
                                         <td class="px-2 py-2 font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></td>
-                                        <td class="px-2 py-2 font-mono" x-text="trade.size ? parseFloat(trade.size).toFixed(6) : 'N/A'"></td>
                                         <td class="px-2 py-2" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></td>
-                                        <td class="px-2 py-2">
-                                            <span x-text="trade.is_open ? 'Open' : 'Closed'" :class="trade.is_open ? 'text-yellow-400' : 'text-gray-400'"></span>
-                                        </td>
                                         <td class="px-2 py-2" x-text="trade.reason || 'N/A'"></td>
                                     </tr>
                                 </template>
                                 <tr x-show="tradeHistory.length === 0">
-                                    <td colspan="7" class="text-center py-4">No trades yet.</td>
+                                    <td colspan="5" class="text-center py-8 text-gray-500">No trades yet.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -132,9 +146,10 @@
                 </div>
             </div>
 
-            <div class="lg:col-span-2 bg-gray-800 p-4 rounded-lg shadow min-h-[600px]">
-                <div class="tradingview-widget-container" style="height:100%;width:100%">
-                  <div id="tradingview_chart" style="height:100%;width:100%"></div>
+            <!-- Right Column (Chart) -->
+            <div class="lg:col-span-2 card p-2 min-h-[600px]">
+                <div class="tradingview-widget-container h-full w-full">
+                  <div id="tradingview_chart" class="h-full w-full"></div>
                 </div>
             </div>
         </div>
@@ -174,6 +189,7 @@
                         console.error('Error fetching dashboard data:', error);
                         this.statusIcon = '🔴';
                         this.statusText = 'API Error';
+                        this.connectionStatus = { ticker: 'disconnected', '5m': 'disconnected', '15m': 'disconnected', '1h': 'disconnected' };
                     }
                 },
 
@@ -188,7 +204,7 @@
                     this.currentPrice = data.current_price ? '$' + parseFloat(data.current_price).toFixed(4) : 'N/A';
                     this.hasPosition = data.has_position;
                     this.balance = data.balance || {};
-                    this.tradeHistory = data.trade_history || [];
+                    this.tradeHistory = (data.trade_history || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                     this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
                     this.signal = data.signal || 'Waiting...';
                     this.signalReason = data.signal_reason || 'N/A';
