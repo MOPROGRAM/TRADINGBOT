@@ -14,6 +14,7 @@
         <header class="mb-6">
             <h1 class="text-3xl md:text-4xl font-bold text-white" x-text="symbol"></h1>
             <p class="text-gray-400">Real-time trading bot dashboard</p>
+            <p class="text-2xl md:text-3xl font-mono text-white mt-2" x-text="currentPrice"></p>
             <!-- Connections Bar -->
             <div class="ws-status-bar mt-3 flex-wrap">
                 <div class="flex items-center gap-x-4 gap-y-2 flex-wrap">
@@ -31,25 +32,6 @@
                 </div>
             </div>
         </header>
-
-        <!-- Status & Price Bar -->
-        <div class="card mb-6">
-            <div class="flex flex-wrap justify-between items-center gap-4">
-                <!-- Status -->
-                <div>
-                    <h2 class="text-base font-semibold text-gray-400">Status</h2>
-                    <div class="flex items-center space-x-2">
-                        <span class="text-2xl" x-html="statusIcon"></span>
-                        <span class="text-lg font-semibold" x-text="statusText"></span>
-                    </div>
-                </div>
-                <!-- Current Price -->
-                <div class="text-right">
-                    <h2 class="text-base font-semibold text-gray-400">Current Price</h2>
-                    <p class="text-2xl md:text-3xl font-mono" x-text="currentPrice"></p>
-                </div>
-            </div>
-        </div>
 
         <!-- Main Layout -->
         <div class="flex flex-col lg:flex-row gap-6">
