@@ -38,8 +38,8 @@ class BinanceWebSocketClient:
             try:
                 # The number of candles should be enough for the indicators to warm up.
                 # The number of candles should be enough for the indicators to warm up (min 100).
-                # We will fetch 100 candles, which is the minimum required for all indicators.
-                fetch_limit = 100 
+                # We will fetch 200 candles, providing a larger buffer for indicators.
+                fetch_limit = 200 
                 logger.info(f"Fetching historical data for {symbol_for_ccxt} on {interval} timeframe (limit: {fetch_limit})...")
                 
                 retries = 3
