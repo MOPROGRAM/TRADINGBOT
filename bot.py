@@ -33,6 +33,7 @@ ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
 ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
 ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVIFIER', 2.0))
 ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
+ADX_TREND_STRENGTH = 25 # Hardcoded ADX trend strength threshold
 
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
@@ -57,6 +58,7 @@ async def initialize_bot():
     strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
     strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT
+    strategy_params["adx_trend_strength"] = ADX_TREND_STRENGTH # Add ADX to strategy params
     logger.info(f"Strategy parameters initialized: {strategy_params}")
     
     # First, populate cache with historical data
@@ -280,7 +282,12 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
     """
     Handles the logic when the bot is not in a position.
     """
-    is_buy_signal, analysis_details = signals.check_buy_signal(candles_primary, candles_15min, candles_trend)
+    is_buy_signal, analysis_details = signals.check_buy_signal(
+        candles_primary, 
+        candles_15min, 
+        candles_trend,
+        adx_trend_strength=ADX_TREND_STRENGTH
+    )
     previous_buy_signal = state.get('previous_buy_signal', False)
 
     state['previous_buy_signal'] = is_buy_signal

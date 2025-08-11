@@ -9,148 +9,180 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="bg-gray-900 text-gray-200 font-sans" x-data="botDashboard()" x-init="init()">
-    <div class="max-w-screen-2xl mx-auto">
-        <div class="flex flex-col lg:flex-row gap-6 p-4">
+    <div class="container mx-auto p-4 lg:p-6">
+        <!-- Header -->
+        <header class="mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-white" x-text="symbol"></h1>
+            <p class="text-gray-400">Real-time trading bot dashboard</p>
+            <!-- Connections Bar -->
+            <div class="ws-status-bar mt-3 flex-wrap">
+                <div class="flex items-center gap-x-4 gap-y-2 flex-wrap">
+                    <template x-for="(status, stream) in connectionStatus" :key="stream">
+                        <div class="flex items-center gap-2" :title="status">
+                            <div class="ws-status-dot" :class="{
+                                'bg-green-500': status === 'connected',
+                                'bg-yellow-500': status === 'connecting',
+                                'bg-red-500': status === 'disconnected',
+                                'bg-gray-500': status === 'stopped'
+                            }"></div>
+                            <span class="text-sm font-semibold" :class="status === 'connected' ? 'text-green-400' : 'text-gray-300'" x-text="stream"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             
-            <!-- Left Column -->
-            <div class="lg:w-96 flex-shrink-0 flex flex-col gap-6 lg:h-screen lg:overflow-y-auto trade-history-scrollbar">
-                <!-- Header -->
-                <div class="flex-shrink-0">
-                    <h1 class="text-2xl md:text-3xl font-bold" x-text="symbol"></h1>
-                <p class="text-gray-400">Real-time trading bot dashboard</p>
-                <!-- Connections Bar -->
-                <div class="ws-status-bar mt-2 flex-wrap">
-                    <span class="text-sm font-semibold text-gray-300 mb-1 sm:mb-0">Connections:</span>
-                    <div class="flex items-center gap-x-2 gap-y-1 flex-wrap">
-                        <template x-for="(status, stream, index) in connectionStatus" :key="stream">
-                            <div class="flex items-center gap-2">
-                                <div class="ws-status-item" :title="status">
-                                    <div class="ws-status-dot" :class="{
-                                        'bg-green-500': status === 'connected',
-                                        'bg-yellow-500': status === 'connecting',
-                                        'bg-red-500': status === 'disconnected',
-                                        'bg-gray-500': status === 'stopped'
-                                    }"></div>
-                                    <span class="text-sm font-semibold" :class="status === 'connected' ? 'text-green-400' : 'text-gray-300'" x-text="stream"></span>
-                                </div>
-                                <span x-show="index < Object.keys(connectionStatus).length - 1" class="text-gray-600 hidden sm:inline">|</span>
+            <!-- Main Chart (Spanning multiple columns) -->
+            <div class="lg:col-span-2 xl:col-span-3 card p-2 sm:p-4 flex flex-col h-[60vh] lg:h-auto">
+                <div id="tradingview_chart" class="flex-1"></div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="lg:col-span-1 xl:col-span-1 flex flex-col gap-6">
+                <!-- Status & Price -->
+                <div class="card">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-base font-semibold text-gray-400">Status</h2>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-2xl" x-html="statusIcon"></span>
+                                <span class="text-lg font-semibold" x-text="statusText"></span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <h2 class="text-base font-semibold text-gray-400">Current Price</h2>
+                            <p class="text-2xl md:text-3xl font-mono" x-text="currentPrice"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Open Position -->
+                <div class="card" x-show="hasPosition" x-transition>
+                    <h2 class="text-xl font-semibold mb-3">Open Position</h2>
+                    <div class="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <span class="text-xs text-gray-400">Entry Price</span>
+                            <p class="font-mono text-base" x-text="position.entry_price"></p>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-400">Size</span>
+                            <p class="font-mono text-base" x-text="position.size"></p>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-400">PnL</span>
+                            <p class="font-mono text-base" x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Balance -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-3">Account Balance</h2>
+                    <div class="space-y-2 text-sm" x-show="Object.keys(balance).length > 0">
+                        <template x-for="asset in Object.keys(balance)" :key="asset">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold" x-text="asset"></span>
+                                <span class="font-mono" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
                             </div>
                         </template>
                     </div>
+                    <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
             </div>
 
-            <!-- Status & Price -->
-            <div class="card flex-shrink-0">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h2 class="text-lg font-semibold text-gray-400">Status</h2>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-2xl" x-html="statusIcon"></span>
-                            <span class="text-lg font-semibold" x-text="statusText"></span>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <h2 class="text-lg font-semibold text-gray-400">Current Price</h2>
-                        <p class="text-xl md:text-2xl font-mono" x-text="currentPrice"></p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Live Signal & Analysis -->
-            <div class="card flex-shrink-0">
+            <!-- Live Signal & Analysis (Full Width Below Chart/Sidebar) -->
+            <div class="lg:col-span-3 xl:col-span-4 card">
                 <h2 class="text-xl font-semibold mb-3">Live Signal & Analysis</h2>
-                <div class="bg-gray-900/50 p-3 rounded-md mb-3">
-                    <div class="flex items-center space-x-3">
-                        <span class="text-3xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
-                        <div>
-                            <p class="font-bold text-lg" x-text="signal"></p>
-                            <p class="text-sm text-gray-400" x-text="signalReason"></p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="md:col-span-1 bg-gray-900/50 p-4 rounded-lg flex items-center">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-4xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
+                            <div>
+                                <p class="font-bold text-xl" x-text="signal"></p>
+                                <p class="text-sm text-gray-400" x-text="signalReason"></p>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="space-y-2">
-                    <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
-                        <div class="signal-box" :class="{
-                            'border-green-500/30': detail.includes('✅'),
-                            'border-red-500/30': detail.includes('❌')
-                        }">
-                            <p x-text="detail" class="text-sm" :class="{
-                                'text-green-300': detail.includes('✅'),
-                                'text-red-300': detail.includes('❌')
-                            }"></p>
-                        </div>
-                    </template>
-                </div>
-                <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
-            </div>
-
-            <!-- Open Position -->
-            <div class="card flex-shrink-0" x-show="hasPosition">
-                <h2 class="text-xl font-semibold mb-2">Open Position</h2>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                        <span class="text-xs text-gray-400">Entry Price</span>
-                        <p class="font-mono" x-text="position.entry_price"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs text-gray-400">Size</span>
-                        <p class="font-mono" x-text="position.size"></p>
-                    </div>
-                    <div>
-                        <span class="text-xs text-gray-400">PnL</span>
-                        <p class="font-mono" x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
+                    <div class="md:col-span-2 space-y-2">
+                        <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
+                            <div class="signal-box" :class="{
+                                'border-green-500/30': detail.includes('✅'),
+                                'border-red-500/30': detail.includes('❌')
+                            }">
+                                <p x-text="detail" class="text-sm" :class="{
+                                    'text-green-300': detail.includes('✅'),
+                                    'text-red-300': detail.includes('❌')
+                                }"></p>
+                            </div>
+                        </template>
+                        <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Account Balance -->
-            <div class="card flex-shrink-0">
-                <h2 class="text-xl font-semibold mb-2">Account Balance</h2>
-                <div class="space-y-2 text-sm" x-show="Object.keys(balance).length > 0">
-                    <template x-for="asset in Object.keys(balance)" :key="asset">
-                        <div class="flex justify-between items-center">
-                            <span class="font-bold" x-text="asset"></span>
-                            <span class="font-mono" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
+            <!-- Data Tables (Full Width) -->
+            <div class="lg:col-span-3 xl:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Trade History -->
+                <div class="card">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-xl font-semibold">Trade History</h2>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-400">Total PnL</span>
+                            <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
                         </div>
-                    </template>
-                </div>
-                <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
-            </div>
-
-            <!-- Trade History -->
-            <div class="card flex-shrink-0">
-                <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-xl font-semibold">Trade History</h2>
-                    <div class="text-right">
-                        <span class="text-sm text-gray-400">Total PnL</span>
-                        <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
                     </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <div class="max-h-64 overflow-y-auto trade-history-scrollbar">
+                    <div class="overflow-x-auto max-h-96">
                         <table class="w-full text-sm text-left trade-history-table">
                             <thead class="text-xs text-gray-400 uppercase bg-gray-800 sticky top-0">
                                 <tr>
-                                    <th scope="col" class="px-2 py-2">Time</th>
-                                    <th scope="col" class="px-2 py-2">Entry</th>
-                                    <th scope="col" class="px-2 py-2">Exit</th>
-                                    <th scope="col" class="px-2 py-2">PnL %</th>
-                                    <th scope="col" class="px-2 py-2">Reason</th>
+                                    <th scope="col" class="px-3 py-2">Time</th>
+                                    <th scope="col" class="px-3 py-2">Entry</th>
+                                    <th scope="col" class="px-3 py-2">Exit</th>
+                                    <th scope="col" class="px-3 py-2">PnL %</th>
+                                    <th scope="col" class="px-3 py-2">Reason</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="divide-y divide-gray-700">
                                 <template x-for="trade in tradeHistory" :key="trade.timestamp">
-                                    <tr class="border-b border-gray-700">
-                                        <td class="px-2 py-2 text-xs" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></td>
-                                        <td class="px-2 py-2 font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></td>
-                                        <td class="px-2 py-2 font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></td>
-                                        <td class="px-2 py-2" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></td>
-                                        <td class="px-2 py-2" x-text="trade.reason || 'N/A'"></td>
+                                    <tr class="hover:bg-gray-800/50">
+                                        <td class="px-3 py-3 text-xs" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></td>
+                                        <td class="px-3 py-3 font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></td>
+                                        <td class="px-3 py-3 font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></td>
+                                        <td class="px-3 py-3" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></td>
+                                        <td class="px-3 py-3" x-text="trade.reason || 'N/A'"></td>
                                     </tr>
                                 </template>
                                 <tr x-show="tradeHistory.length === 0">
-                                    <td colspan="5" class="text-center py-8 text-gray-500">No trades yet.</td>
+                                    <td colspan="5" class="text-center py-12 text-gray-500">No trades yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Strategy Parameters -->
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-3">Strategy Parameters</h2>
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-gray-400 uppercase bg-gray-800 sticky top-0">
+                                <tr>
+                                    <th scope="col" class="px-3 py-2">Parameter</th>
+                                    <th scope="col" class="px-3 py-2">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-700">
+                                <template x-for="[key, value] in Object.entries(strategyParams)" :key="key">
+                                    <tr class="hover:bg-gray-800/50">
+                                        <td class="px-3 py-3 font-semibold text-gray-300" x-text="key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())"></td>
+                                        <td class="px-3 py-3 font-mono" x-text="value"></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="Object.keys(strategyParams).length === 0">
+                                    <td colspan="2" class="text-center py-12 text-gray-500">Loading params...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -158,12 +190,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Right Column (Chart) -->
-        <div class="flex-1 card p-4 flex flex-col">
-            <div id="tradingview_chart" class="flex-1"></div>
-        </div>
-    </div>
     </div>
 
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
@@ -184,6 +210,7 @@
                 signalReason: 'Waiting for data...',
                 analysisDetails: 'Waiting for data...',
                 connectionStatus: {},
+                strategyParams: {},
                 init() {
                     this.loadDashboardData();
                     this.loadTradingViewChart();
@@ -221,6 +248,7 @@
                     this.signalReason = data.signal_reason || 'N/A';
                     this.analysisDetails = data.analysis_details || 'N/A';
                     this.connectionStatus = data.connection_status || {};
+                    this.strategyParams = data.strategy_params || {};
 
                     if (this.hasPosition) {
                         this.position = {

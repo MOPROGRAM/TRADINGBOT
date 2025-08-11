@@ -55,7 +55,7 @@ def is_valid_candle(c):
     return isinstance(c, list) and len(c) == 6 and \
            all(isinstance(val, (int, float)) and val is not None for val in c[1:])
 
-def check_buy_signal(candles_primary, candles_15min, candles_trend):
+def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_strength=25):
     """
     Checks for buy signal using Multi-Timeframe Analysis.
     Primary candles are for entry signals (5-min), candles_15min for 15-min trend,
@@ -120,11 +120,16 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
     df_primary['rsi'] = ta.rsi(df_primary['close'], length=14)
     df_primary['ema_short'] = ta.ema(df_primary['close'], length=EXIT_EMA_PERIOD_SHORT) # Using EXIT_EMA_PERIOD_SHORT for buy signal short EMA
     df_primary['ema_long'] = ta.ema(df_primary['close'], length=EXIT_EMA_PERIOD_LONG) # Using EXIT_EMA_PERIOD_LONG for buy signal long EMA
+    # Calculate ADX
+    adx_df = ta.adx(df_primary['high'], df_primary['low'], df_primary['close'], length=14)
+    df_primary['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
+
 
     last_close_primary = df_primary['close'].iloc[-1]
     last_rsi_primary = df_primary['rsi'].iloc[-1]
     last_ema_short_primary = df_primary['ema_short'].iloc[-1]
     last_ema_long_primary = df_primary['ema_long'].iloc[-1]
+    last_adx = df_primary['adx'].iloc[-1]
 
     prev_ema_short_primary = df_primary['ema_short'].iloc[-2]
     prev_ema_long_primary = df_primary['ema_long'].iloc[-2]
@@ -165,8 +170,18 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend):
         if last_close_primary <= last_ema_trend_1h:
             analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is not above the 1h trend EMA ({last_ema_trend_1h:.4f}).")
 
-    # A buy signal is triggered only if all three conditions are met.
-    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend
+    # New: ADX Trend Strength Condition
+    cond4_adx_strong_trend = last_adx is not None and not pd.isna(last_adx) and last_adx > adx_trend_strength
+    if last_adx is None or pd.isna(last_adx):
+        analysis_details.append(f"⚠️ ADX could not be calculated.")
+    elif cond4_adx_strong_trend:
+        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates a strong trend (>{adx_trend_strength}).")
+    else:
+        analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength}).")
+
+
+    # A buy signal is triggered only if all four conditions are met.
+    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend
 
     return buy_signal_triggered, " | ".join(analysis_details)
 
