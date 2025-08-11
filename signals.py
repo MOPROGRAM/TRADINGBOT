@@ -300,23 +300,6 @@ def check_sell_signal(candles):
     else:
         analysis_details.append(f"❌ No significant price drop from recent high.")
 
-    # --- Volume Confirmation (New Condition) ---
-    cond4_volume_confirmation = False
-    if len(df_closed) >= VOLUME_SMA_PERIOD:
-        last_closed_candle = df_closed.iloc[-1]
-        last_closed_candle_volume = last_closed_candle['volume']
-        last_volume_sma = df_closed['volume_sma'].iloc[-1]
-
-        # Check if the last closed candle is bearish (close < open) and has high volume
-        if last_closed_candle['close'] < last_closed_candle['open'] and \
-           last_closed_candle_volume > last_volume_sma * VOLUME_CONFIRMATION_MULTIPLIER:
-            cond4_volume_confirmation = True
-    
-    if cond4_volume_confirmation:
-        analysis_details.append(f"✅ Bearish volume confirmation (Volume {last_closed_candle_volume:.2f} > {VOLUME_CONFIRMATION_MULTIPLIER}x SMA {last_volume_sma:.2f}).")
-    else:
-        analysis_details.append(f"❌ No bearish volume confirmation.")
-
     # New: ADX Weakness Condition for Sell
     cond5_adx_weakness = last_adx is not None and not pd.isna(last_adx) and last_adx < ADX_TREND_STRENGTH
     if last_adx is None or pd.isna(last_adx):
@@ -326,8 +309,26 @@ def check_sell_signal(candles):
     else:
         analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate trend weakness (above {ADX_TREND_STRENGTH}).")
 
-    # A sell signal is triggered if any of the primary exit conditions are met, including ADX weakness
-    sell_signal_triggered = cond1_bearish_divergence or cond2_ema_crossunder or cond3_reversal_drop or cond5_adx_weakness
+    # --- Bearish Volume Confirmation for Sell ---
+    cond4_bearish_volume_confirmation = False
+    if len(df_closed) >= VOLUME_SMA_PERIOD:
+        last_closed_candle = df_closed.iloc[-1]
+        last_closed_candle_volume = last_closed_candle['volume']
+        last_volume_sma = df_closed['volume_sma'].iloc[-1]
+
+        # Check if the last closed candle is bearish (close < open) and has high volume
+        if last_closed_candle['close'] < last_closed_candle['open'] and \
+           last_closed_candle_volume > last_volume_sma * VOLUME_CONFIRMATION_MULTIPLIER:
+            cond4_bearish_volume_confirmation = True
+    
+    if cond4_bearish_volume_confirmation:
+        analysis_details.append(f"✅ Bearish volume confirmation (Volume {last_closed_candle_volume:.2f} > {VOLUME_CONFIRMATION_MULTIPLIER}x SMA {last_volume_sma:.2f}).")
+    else:
+        analysis_details.append(f"❌ No bearish volume confirmation.")
+
+    # A sell signal is triggered if at least two of the primary conditions are met AND bearish volume is confirmed.
+    primary_conditions_met = sum([cond1_bearish_divergence, cond2_ema_crossunder, cond3_reversal_drop, cond5_adx_weakness])
+    sell_signal_triggered = (primary_conditions_met >= 2) and cond4_bearish_volume_confirmation
 
     return sell_signal_triggered, " | ".join(analysis_details)
 
