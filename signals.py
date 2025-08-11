@@ -193,8 +193,6 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates a strong trend (>{adx_trend_strength}).")
     else:
         analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength}).")
->>>>>>> Stashed changes
-
 
     # A buy signal is triggered only if all four conditions are met.
     buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend
