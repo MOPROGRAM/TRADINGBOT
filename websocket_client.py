@@ -37,9 +37,23 @@ class BinanceWebSocketClient:
         for interval in self.kline_intervals:
             try:
                 # The number of candles should be enough for the indicators to warm up.
-                # Using max_len ensures we fill up the deque.
-                logger.info(f"Fetching historical data for {symbol_for_ccxt} on {interval} timeframe (limit: {self.max_len})...")
-                historical_candles_raw = exchange.fetch_ohlcv(symbol_for_ccxt, interval, limit=self.max_len)
+                # The number of candles should be enough for the indicators to warm up (min 100).
+                # We will fetch 100 candles, which is the minimum required for all indicators.
+                fetch_limit = 100 
+                logger.info(f"Fetching historical data for {symbol_for_ccxt} on {interval} timeframe (limit: {fetch_limit})...")
+                
+                retries = 3
+                for i in range(retries):
+                    try:
+                        historical_candles_raw = exchange.fetch_ohlcv(symbol_for_ccxt, interval, limit=fetch_limit)
+                        break # Break if successful
+                    except (ccxt.RateLimitExceeded, ccxt.DDoSProtection) as e:
+                        if i < retries - 1:
+                            delay = min(2 ** i, self._max_reconnect_delay) # Use _max_reconnect_delay for consistency
+                            logger.warning(f"Rate limit/DDoS protection hit for {interval} (attempt {i+1}/{retries}). Retrying in {delay}s: {e}")
+                            time.sleep(delay)
+                        else:
+                            raise # Re-raise if last attempt failed
                 
                 # Add the 'is_closed' flag (True) to each historical candle
                 historical_candles = [candle + [True] for candle in historical_candles_raw]
@@ -54,8 +68,10 @@ class BinanceWebSocketClient:
                 if len(historical_candles) > 0:
                     self.kline_initialized[interval].set()
 
+            except (ccxt.RateLimitExceeded, ccxt.DDoSProtection) as e:
+                logger.error(f"Failed to fetch historical data for {interval} after multiple retries due to rate limit/DDoS protection: {e}")
             except Exception as e:
-                logger.error(f"Failed to fetch historical data for {interval}: {e}", exc_info=True)
+                logger.error(f"An unexpected error occurred during historical data population for {interval}: {e}", exc_info=True)
 
     async def _connect_kline_websocket(self, interval: str):
         uri = f"wss://stream.binance.com:9443/ws/{self.symbol}@kline_{interval}"
