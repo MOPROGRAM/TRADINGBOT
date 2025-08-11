@@ -80,7 +80,7 @@ html, body {
 @media (max-width: 1023px) {
     /* Increase padding for the chart card on smaller screens */
     .chart-card-mobile-padding {
-        padding: 5rem !important; /* 5 times the original 1rem (16px * 5 = 80px) */
+        padding: 0.5rem !important; /* Reduced padding for chart card on smaller screens */
         min-height: 600px !important; /* Ensure the card itself has a minimum height */
     }
     /* The #tradingview_chart will now expand due to flex-1 within the taller parent */
