@@ -39,8 +39,11 @@ class BinanceWebSocketClient:
                 # The number of candles should be enough for the indicators to warm up.
                 # Using max_len ensures we fill up the deque.
                 logger.info(f"Fetching historical data for {symbol_for_ccxt} on {interval} timeframe (limit: {self.max_len})...")
-                historical_candles = exchange.fetch_ohlcv(symbol_for_ccxt, interval, limit=self.max_len)
+                historical_candles_raw = exchange.fetch_ohlcv(symbol_for_ccxt, interval, limit=self.max_len)
                 
+                # Add the 'is_closed' flag (True) to each historical candle
+                historical_candles = [candle + [True] for candle in historical_candles_raw]
+
                 with self.lock:
                     # The deque will automatically handle the max_len limit
                     self.kline_data[interval].extend(historical_candles)
