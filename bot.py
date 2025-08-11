@@ -36,6 +36,7 @@ ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
 ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVIFIER', 2.0))
 ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
 ADX_TREND_STRENGTH = 25 # Hardcoded ADX trend strength threshold
+SLIPPAGE_PERCENTAGE = float(os.getenv('SLIPPAGE_PERCENTAGE', 0.001)) # New: Estimated slippage percentage (e.g., 0.001 for 0.1%)
 
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
@@ -324,10 +325,10 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
                 return "Waiting (no position)", reason, analysis_details
 
             potential_tp_price = current_price + (current_atr * ATR_TP_MULTIPLIER)
-            break_even_price = current_price * (1 + 2 * fee_rate)
+            break_even_price = current_price * (1 + 2 * fee_rate + SLIPPAGE_PERCENTAGE)
 
             if potential_tp_price <= break_even_price:
-                reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%)."
+                reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%, Slippage: {SLIPPAGE_PERCENTAGE*100:.3f}%)."
                 logger.info(reason)
                 state['pending_buy_confirmation'] = False # Reset state
                 save_state(state)
