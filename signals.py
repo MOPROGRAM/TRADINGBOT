@@ -168,22 +168,22 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     # Corrected logic for EMA crossover analysis text
     if last_ema_short_primary > last_ema_long_primary:
         if cond2_ema_crossover:
-            analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short EMA {last_ema_short_primary:.4f} > Long EMA {last_ema_long_primary:.4f}).")
+            analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short {last_ema_short_primary:.4f} > Long {last_ema_long_primary:.4f}).")
         else:
-            analysis_details.append(f"✅ Short EMA ({last_ema_short_primary:.4f}) is above Long EMA ({last_ema_long_primary:.4f}), but no recent crossover.")
+            analysis_details.append(f"✅ Short EMA ({last_ema_short_primary:.4f}) is above Long EMA ({last_ema_long_primary:.4f}).")
     else:
         analysis_details.append(f"❌ Short EMA ({last_ema_short_primary:.4f}) is not above Long EMA ({last_ema_long_primary:.4f}).")
 
 
     cond3_price_above_trend = last_close_primary > last_ema_trend_15min and last_close_primary > last_ema_trend_1h
     if cond3_price_above_trend:
-        analysis_details.append(f"✅ Price ({last_close_primary:.4f}) is above the 15m & 1h trend EMAs.")
+        analysis_details.append(f"✅ Live Price ({last_close_primary:.4f}) is above 15m & 1h trend EMAs.")
     else:
         # Provide more specific feedback on which trend check failed
         if last_close_primary <= last_ema_trend_15min:
-            analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is not above the 15m trend EMA ({last_ema_trend_15min:.4f}).")
+            analysis_details.append(f"❌ Live Price ({last_close_primary:.4f}) is not above 15m Trend EMA ({last_ema_trend_15min:.4f}).")
         if last_close_primary <= last_ema_trend_1h:
-            analysis_details.append(f"❌ Price ({last_close_primary:.4f}) is not above the 1h trend EMA ({last_ema_trend_1h:.4f}).")
+            analysis_details.append(f"❌ Live Price ({last_close_primary:.4f}) is not above 1h Trend EMA ({last_ema_trend_1h:.4f}).")
 
     # New: ADX Trend Strength Condition
     cond4_adx_strong_trend = last_adx is not None and not pd.isna(last_adx) and last_adx > adx_trend_strength
@@ -193,6 +193,7 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates a strong trend (>{adx_trend_strength}).")
     else:
         analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength}).")
+>>>>>>> Stashed changes
 
 
     # A buy signal is triggered only if all four conditions are met.
