@@ -68,7 +68,12 @@ async def initialize_bot():
     
     # First, populate cache with historical data
     exchange = get_exchange()
-    websocket_client.populate_historical_candles(exchange, SYMBOL)
+    try:
+        websocket_client.populate_historical_candles(exchange, SYMBOL)
+    except (ccxt.RateLimitExceeded, ccxt.DDoSProtection) as e:
+        logger.warning(f"Initial historical data fetch failed due to rate limit/DDoS protection: {e}. Bot will proceed and rely on live WebSocket data to build history.")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during historical data population: {e}", exc_info=True)
 
     # Now, start the live WebSocket client
     start_websocket_client()
