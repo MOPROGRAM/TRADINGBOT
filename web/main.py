@@ -120,6 +120,22 @@ def get_status():
 
         for trade in recent_history:
             trade['is_open'] = False
+            # Add side and pnl to each trade
+            if 'buy' in (trade.get('reason', '').lower()):
+                trade['side'] = 'Buy'
+            elif 'sell' in (trade.get('reason', '').lower()):
+                trade['side'] = 'Sell'
+            else:
+                trade['side'] = 'N/A'
+            
+            entry = trade.get('entry_price')
+            exit_p = trade.get('exit_price')
+            size = trade.get('size')
+            if entry and exit_p and size:
+                trade['pnl'] = (exit_p - entry) * size
+            else:
+                trade['pnl'] = 0
+
             processed_history.append(trade)
 
         processed_history.sort(key=lambda x: parse_timestamp(x.get('timestamp')) or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
