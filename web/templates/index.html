@@ -32,34 +32,36 @@
             </div>
         </header>
 
+        <!-- Status & Price Bar -->
+        <div class="card mb-6">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <!-- Status -->
+                <div>
+                    <h2 class="text-base font-semibold text-gray-400">Status</h2>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-2xl" x-html="statusIcon"></span>
+                        <span class="text-lg font-semibold" x-text="statusText"></span>
+                    </div>
+                </div>
+                <!-- Current Price -->
+                <div class="text-right">
+                    <h2 class="text-base font-semibold text-gray-400">Current Price</h2>
+                    <p class="text-2xl md:text-3xl font-mono" x-text="currentPrice"></p>
+                </div>
+            </div>
+        </div>
+
         <!-- Main Layout -->
         <div class="flex flex-col lg:flex-row gap-6">
             <!-- Left Column: Chart -->
             <main class="lg:w-8/12 flex flex-col">
-                <div class="card p-2 sm:p-4 flex flex-col flex-1 min-h-0">
+                <div class="card p-2 sm:p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
                     <div id="tradingview_chart" class="flex-1 w-full"></div>
                 </div>
             </main>
 
             <!-- Right Column: Info -->
             <aside class="lg:w-4/12 flex flex-col gap-6">
-                <!-- Status & Price -->
-                <div class="card">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-base font-semibold text-gray-400">Status</h2>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-2xl" x-html="statusIcon"></span>
-                                <span class="text-lg font-semibold" x-text="statusText"></span>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            <h2 class="text-base font-semibold text-gray-400">Current Price</h2>
-                            <p class="text-2xl md:text-3xl font-mono" x-text="currentPrice"></p>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Open Position -->
                 <div class="card" x-show="hasPosition" x-transition>
                     <h2 class="text-xl font-semibold mb-3">Open Position</h2>
@@ -77,20 +79,6 @@
                             <p class="font-mono text-base" x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
                         </div>
                     </div>
-                </div>
-
-                <!-- Account Balance -->
-                <div class="card">
-                    <h2 class="text-xl font-semibold mb-3">Account Balance</h2>
-                    <div class="space-y-2 text-sm" x-show="Object.keys(balance).length > 0">
-                        <template x-for="asset in Object.keys(balance)" :key="asset">
-                            <div class="flex justify-between items-center">
-                                <span class="font-bold" x-text="asset"></span>
-                                <span class="font-mono" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
-                            </div>
-                        </template>
-                    </div>
-                    <p x-show="Object.keys(balance).length === 0">Loading balance...</p>
                 </div>
 
                 <!-- Live Signal & Analysis -->
@@ -128,6 +116,20 @@
         <!-- Trade History (Full Width) -->
         <div class="mt-6">
             <div class="card">
+                <!-- Account Balance Bar -->
+                <div class="bg-gray-800/50 p-3 rounded-lg mb-4">
+                    <h3 class="text-lg font-semibold mb-2 text-gray-300">Account Balance</h3>
+                    <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm" x-show="Object.keys(balance).length > 0">
+                        <template x-for="asset in Object.keys(balance)" :key="asset">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-400" x-text="asset + ':'"></span>
+                                <span class="font-mono text-white" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="Object.keys(balance).length === 0" class="text-sm text-gray-500">Loading balance...</p>
+                </div>
+
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold">Trade History</h2>
                     <div class="text-right">
