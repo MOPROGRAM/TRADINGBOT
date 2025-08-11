@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import pandas_ta as ta
 from logger import get_logger
+from scipy.signal import find_peaks
 
 logger = get_logger(__name__)
 
@@ -201,7 +202,7 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
 
 def check_sell_signal(candles):
     """
-    Checks for a sell signal based on RSI, EMA crossover, and price reversal.
+    Checks for a sell signal based on bearish RSI divergence, EMA crossover, and price reversal.
     """
     analysis_details = []
 
@@ -213,9 +214,9 @@ def check_sell_signal(candles):
     df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
     df_closed = df[df['is_closed']].copy()
 
-    for col in ['high', 'low', 'close']:
+    for col in ['high', 'low', 'close', 'volume']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
-    df_closed.dropna(subset=['high', 'low', 'close'], inplace=True)
+    df_closed.dropna(subset=['high', 'low', 'close', 'volume'], inplace=True)
 
     if len(df_closed) < max(EXIT_EMA_PERIOD_LONG, TREND_EMA_PERIOD, ATR_PERIOD, 100):
         reason = f"Insufficient valid closed candles ({len(df_closed)}) for sell signal analysis."
@@ -228,23 +229,42 @@ def check_sell_signal(candles):
     df_closed['ema_long'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_LONG)
     df_closed['ema_trend'] = ta.ema(df_closed['close'], length=TREND_EMA_PERIOD)
 
-    # Get latest values from indicators calculated on closed candles
-    last_rsi = df_closed['rsi'].iloc[-1]
+    # --- Bearish RSI Divergence Check ---
+    cond1_bearish_divergence = False
+    # Look for peaks in the last 60 candles for divergence
+    lookback_period_divergence = 60
+    if len(df_closed) > lookback_period_divergence:
+        price_data = df_closed['close'].tail(lookback_period_divergence)
+        rsi_data = df_closed['rsi'].tail(lookback_period_divergence)
+        
+        # Find peaks (local maxima)
+        price_peaks, _ = find_peaks(price_data, distance=5, prominence=0.001)
+        rsi_peaks, _ = find_peaks(rsi_data, distance=5, prominence=1)
+
+        if len(price_peaks) >= 2 and len(rsi_peaks) >= 2:
+            # Get the last two peaks
+            last_price_peak_idx = price_data.index[price_peaks[-1]]
+            prev_price_peak_idx = price_data.index[price_peaks[-2]]
+            last_rsi_peak_idx = rsi_data.index[rsi_peaks[-1]]
+            prev_rsi_peak_idx = rsi_data.index[rsi_peaks[-2]]
+
+            # Check for higher high in price and lower high in RSI
+            if df_closed['close'][last_price_peak_idx] > df_closed['close'][prev_price_peak_idx] and \
+               df_closed['rsi'][last_rsi_peak_idx] < df_closed['rsi'][prev_rsi_peak_idx]:
+                cond1_bearish_divergence = True
+
+    if cond1_bearish_divergence:
+        analysis_details.append(f"✅ Bearish RSI Divergence detected.")
+    else:
+        analysis_details.append(f"❌ No Bearish RSI Divergence.")
+
+    # --- Other Sell Conditions ---
     last_ema_short = df_closed['ema_short'].iloc[-1]
     last_ema_long = df_closed['ema_long'].iloc[-1]
-    last_ema_trend = df_closed['ema_trend'].iloc[-1]
     prev_ema_short = df_closed['ema_short'].iloc[-2]
     prev_ema_long = df_closed['ema_long'].iloc[-2]
-
-    # Get latest close price from the original dataframe
     last_close = df['close'].iloc[-1]
-
-    # --- Condition Checks ---
-    cond1_rsi_overbought = last_rsi > EXIT_RSI_LEVEL
-    if cond1_rsi_overbought:
-        analysis_details.append(f"✅ RSI ({last_rsi:.2f}) is overbought (>{EXIT_RSI_LEVEL}).")
-    else:
-        analysis_details.append(f"❌ RSI ({last_rsi:.2f}) is not overbought.")
+    last_ema_trend = df_closed['ema_trend'].iloc[-1]
 
     cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
     if last_ema_short < last_ema_long:
@@ -255,25 +275,19 @@ def check_sell_signal(candles):
     else:
         analysis_details.append(f"❌ Short EMA ({last_ema_short:.4f}) is not below Long EMA ({last_ema_long:.4f}).")
 
-    cond3_price_below_trend = last_close < last_ema_trend
-    if cond3_price_below_trend:
-        analysis_details.append(f"✅ Price ({last_close:.4f}) broke below trend EMA ({last_ema_trend:.4f}).")
-    else:
-        analysis_details.append(f"❌ Price ({last_close:.4f}) is still above trend EMA ({last_ema_trend:.4f}).")
-
-    lookback_period = 20
-    cond4_reversal_drop = False
-    if len(df) >= lookback_period:
-        recent_high = df['high'].iloc[-lookback_period:-1].max()
+    lookback_period_reversal = 20
+    cond3_reversal_drop = False
+    if len(df_closed) >= lookback_period_reversal:
+        recent_high = df_closed['high'].iloc[-lookback_period_reversal:-1].max()
         if recent_high and last_close < recent_high * (1 - REVERSAL_DROP_PERCENTAGE):
-            cond4_reversal_drop = True
-    if cond4_reversal_drop:
+            cond3_reversal_drop = True
+    if cond3_reversal_drop:
         analysis_details.append(f"✅ Price dropped more than {REVERSAL_DROP_PERCENTAGE:.1%} from recent high.")
     else:
         analysis_details.append(f"❌ No significant price drop from recent high.")
 
-    # A sell signal is triggered if any of the primary exit conditions are met (RSI, EMA cross, Reversal)
-    sell_signal_triggered = cond1_rsi_overbought or cond2_ema_crossunder or cond4_reversal_drop
+    # A sell signal is triggered if any of the primary exit conditions are met
+    sell_signal_triggered = cond1_bearish_divergence or cond2_ema_crossunder or cond3_reversal_drop
 
     return sell_signal_triggered, " | ".join(analysis_details)
 

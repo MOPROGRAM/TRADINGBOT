@@ -11,3 +11,4 @@ pandas-ta
 scikit-learn
 joblib
 websockets
+scipy
