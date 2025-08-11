@@ -10,7 +10,8 @@ from exchange import (
     get_exchange, fetch_candles, get_current_price, 
     create_market_buy_order, create_market_sell_order, 
     get_account_balance, fetch_last_buy_trade,
-    start_websocket_client, stop_websocket_client, websocket_client
+    start_websocket_client, stop_websocket_client, websocket_client,
+    get_trading_fees
 )
 import signals
 from state import load_state, save_state, clear_state, save_trade_history, get_default_state
@@ -59,6 +60,7 @@ async def initialize_bot():
     strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT
     strategy_params["adx_trend_strength"] = ADX_TREND_STRENGTH # Add ADX to strategy params
+    strategy_params["trading_fee"] = 0.0 # Will be updated dynamically
     logger.info(f"Strategy parameters initialized: {strategy_params}")
     
     # First, populate cache with historical data
@@ -278,7 +280,7 @@ def handle_in_position(exchange, state, current_price, candles):
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 
-def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend):
+def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate):
     """
     Handles the logic when the bot is not in a position.
     """
@@ -295,6 +297,24 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
 
     if is_buy_signal and not previous_buy_signal:
         logger.info("BUY SIGNAL CROSSOVER DETECTED.")
+        
+        # Profitability Check
+        current_atr = signals.calculate_atr(candles_primary)
+        if current_atr is None:
+            reason = "Could not calculate ATR for profitability check."
+            logger.warning(reason)
+            return "Waiting (no position)", reason, analysis_details
+
+        potential_tp_price = current_price + (current_atr * ATR_TP_MULTIPLIER)
+        break_even_price = current_price * (1 + 2 * fee_rate) # Simplified break-even calculation
+
+        if potential_tp_price <= break_even_price:
+            reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%)."
+            logger.info(reason)
+            return "Waiting (no position)", reason, analysis_details
+
+        logger.info(f"Profitability check passed: Potential TP ${potential_tp_price:.4f} > Break-even ${break_even_price:.4f}")
+
         quote_currency = SYMBOL.split('/')[1]
         amount_usdt = balance.get(quote_currency, 0)
         
@@ -341,10 +361,15 @@ async def run_bot_tick():
     candles_primary, candles_15min, candles_trend = [], [], []
     current_price = None
     balance = {}
+    fee_rate = 0.0
 
     try:
         exchange = get_exchange()
         state = load_state()
+
+        # Fetch trading fee and update strategy params
+        fee_rate = get_trading_fees(exchange, SYMBOL)
+        strategy_params["trading_fee"] = fee_rate
 
         balance = get_account_balance(exchange)
         if not isinstance(balance, dict):
@@ -390,7 +415,7 @@ async def run_bot_tick():
                 if trade_executed:
                     return
             else:
-                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend)
+                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate)
 
     except ccxt.BaseError as e:
         logger.error(f"Bot tick CCXT error: {e}", exc_info=True)

@@ -153,3 +153,16 @@ def create_market_sell_order(exchange, symbol, size):
     except ccxt.BaseError as e:
         logger.error(f"Error creating market sell order: {e}")
         return None
+
+def get_trading_fees(exchange, symbol):
+    """Fetches the trading fees for a given symbol."""
+    try:
+        fees = exchange.fetch_trading_fees()
+        if symbol in fees:
+            return fees[symbol]['taker']
+        else:
+            logger.warning(f"Could not find fee information for {symbol}. Returning default 0.001.")
+            return 0.001 # Default fee if not found
+    except ccxt.BaseError as e:
+        logger.error(f"Error fetching trading fees: {e}")
+        return 0.001 # Default fee on error
