@@ -136,6 +136,7 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     df_primary_closed['rsi'] = ta.rsi(df_primary_closed['close'], length=14)
     df_primary_closed['ema_short'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
     df_primary_closed['ema_long'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_LONG)
+    df_primary_closed['volume_sma'] = ta.sma(df_primary_closed['volume'], length=VOLUME_SMA_PERIOD) # New: Volume SMA
     adx_df = ta.adx(df_primary_closed['high'], df_primary_closed['low'], df_primary_closed['close'], length=14)
     df_primary_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
 
@@ -144,6 +145,8 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     last_ema_short_primary = df_primary_closed['ema_short'].iloc[-1]
     last_ema_long_primary = df_primary_closed['ema_long'].iloc[-1]
     last_adx = df_primary_closed['adx'].iloc[-1]
+    last_volume_primary = df_primary_closed['volume'].iloc[-1] # New: Last volume
+    last_volume_sma_primary = df_primary_closed['volume_sma'].iloc[-1] # New: Last volume SMA
     prev_ema_short_primary = df_primary_closed['ema_short'].iloc[-2]
     prev_ema_long_primary = df_primary_closed['ema_long'].iloc[-2]
 
@@ -195,8 +198,15 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     else:
         analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength}).")
 
-    # A buy signal is triggered only if all four conditions are met.
-    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend
+    # New: Volume Confirmation Condition
+    cond5_volume_confirmation = last_volume_primary > (last_volume_sma_primary * VOLUME_CONFIRMATION_MULTIPLIER)
+    if cond5_volume_confirmation:
+        analysis_details.append(f"✅ Volume ({last_volume_primary:.2f}) is {VOLUME_CONFIRMATION_MULTIPLIER}x above SMA ({last_volume_sma_primary:.2f}).")
+    else:
+        analysis_details.append(f"❌ Volume ({last_volume_primary:.2f}) is not {VOLUME_CONFIRMATION_MULTIPLIER}x above SMA ({last_volume_sma_primary:.2f}).")
+
+    # A buy signal is triggered only if all five conditions are met.
+    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend and cond5_volume_confirmation
 
     return buy_signal_triggered, " | ".join(analysis_details)
 
@@ -228,6 +238,9 @@ def check_sell_signal(candles):
     df_closed['ema_short'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
     df_closed['ema_long'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_LONG)
     df_closed['ema_trend'] = ta.ema(df_closed['close'], length=TREND_EMA_PERIOD)
+    df_closed['volume_sma'] = ta.sma(df_closed['volume'], length=VOLUME_SMA_PERIOD) # New: Volume SMA
+    adx_df = ta.adx(df_closed['high'], df_closed['low'], df_closed['close'], length=14)
+    df_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan # New: ADX for sell signal
 
     # --- Bearish RSI Divergence Check ---
     cond1_bearish_divergence = False
@@ -263,8 +276,9 @@ def check_sell_signal(candles):
     last_ema_long = df_closed['ema_long'].iloc[-1]
     prev_ema_short = df_closed['ema_short'].iloc[-2]
     prev_ema_long = df_closed['ema_long'].iloc[-2]
-    last_close = df['close'].iloc[-1]
+    last_close = df['close'].iloc[-1] # Use last_close from original df for live price
     last_ema_trend = df_closed['ema_trend'].iloc[-1]
+    last_adx = df_closed['adx'].iloc[-1] # New: Last ADX for sell signal
 
     cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
     if last_ema_short < last_ema_long:
@@ -286,8 +300,34 @@ def check_sell_signal(candles):
     else:
         analysis_details.append(f"❌ No significant price drop from recent high.")
 
-    # A sell signal is triggered if any of the primary exit conditions are met
-    sell_signal_triggered = cond1_bearish_divergence or cond2_ema_crossunder or cond3_reversal_drop
+    # --- Volume Confirmation (New Condition) ---
+    cond4_volume_confirmation = False
+    if len(df_closed) >= VOLUME_SMA_PERIOD:
+        last_closed_candle = df_closed.iloc[-1]
+        last_closed_candle_volume = last_closed_candle['volume']
+        last_volume_sma = df_closed['volume_sma'].iloc[-1]
+
+        # Check if the last closed candle is bearish (close < open) and has high volume
+        if last_closed_candle['close'] < last_closed_candle['open'] and \
+           last_closed_candle_volume > last_volume_sma * VOLUME_CONFIRMATION_MULTIPLIER:
+            cond4_volume_confirmation = True
+    
+    if cond4_volume_confirmation:
+        analysis_details.append(f"✅ Bearish volume confirmation (Volume {last_closed_candle_volume:.2f} > {VOLUME_CONFIRMATION_MULTIPLIER}x SMA {last_volume_sma:.2f}).")
+    else:
+        analysis_details.append(f"❌ No bearish volume confirmation.")
+
+    # New: ADX Weakness Condition for Sell
+    cond5_adx_weakness = last_adx is not None and not pd.isna(last_adx) and last_adx < ADX_TREND_STRENGTH
+    if last_adx is None or pd.isna(last_adx):
+        analysis_details.append(f"⚠️ ADX could not be calculated for weakness check.")
+    elif cond5_adx_weakness:
+        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates trend weakness (below {ADX_TREND_STRENGTH}).")
+    else:
+        analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate trend weakness (above {ADX_TREND_STRENGTH}).")
+
+    # A sell signal is triggered if any of the primary exit conditions are met, including ADX weakness
+    sell_signal_triggered = cond1_bearish_divergence or cond2_ema_crossunder or cond3_reversal_drop or cond5_adx_weakness
 
     return sell_signal_triggered, " | ".join(analysis_details)
 
