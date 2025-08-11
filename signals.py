@@ -16,6 +16,7 @@ EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
 BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55))
 BUY_RSI_UPPER_LEVEL = int(os.getenv('BUY_RSI_UPPER_LEVEL', 70)) # New RSI upper level for buy signal
 REVERSAL_DROP_PERCENTAGE = float(os.getenv('REVERSAL_DROP_PERCENTAGE', 0.01)) # 1.0% drop for reversal confirmation (increased from 0.5%)
+VOLUME_CONFIRMATION_MULTIPLIER = float(os.getenv('VOLUME_CONFIRMATION_MULTIPLIER', 1.5)) # Volume must be X times average for confirmation
 
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
