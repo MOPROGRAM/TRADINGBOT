@@ -75,3 +75,16 @@ html, body {
 .trade-card:hover {
     background-color: #374151;
 }
+
+/* Responsive adjustments for chart height and padding on smaller screens */
+@media (max-width: 1023px) {
+    /* Increase padding for the chart card on smaller screens */
+    .chart-card-mobile-padding {
+        padding: 5rem !important; /* 5 times the original 1rem (16px * 5 = 80px) */
+    }
+
+    /* Increase min-height for the chart container on smaller screens */
+    #tradingview_chart {
+        min-height: 500px !important; /* This will make the chart itself taller */
+    }
+}
