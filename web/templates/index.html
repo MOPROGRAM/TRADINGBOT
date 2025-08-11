@@ -123,56 +123,53 @@
                 </div>
             </div>
 
-            <!-- Data Tables (Full Width) -->
-            <div class="lg:col-span-3 xl:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Trade History -->
-                <div class="card">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-semibold">Trade History</h2>
-                        <div class="text-right">
-                            <span class="text-sm text-gray-400">Total PnL</span>
-                            <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
-                        </div>
-                    </div>
-                    <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
-                        <template x-for="trade in tradeHistory.slice(0, 10)" :key="trade.timestamp">
-                            <div class="trade-card" :class="trade.pnl_percent >= 0 ? 'border-green-500/20' : 'border-red-500/20'">
-                                <div class="flex justify-between items-start">
-                                    <div>
-                                        <p class="font-bold text-base" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'">
-                                            <span x-text="trade.side"></span>
-                                            <span x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></span>
-                                        </p>
-                                        <p class="text-xs text-gray-400" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></p>
-                                    </div>
-                                    <div class="text-right">
-                                        <p class="font-mono text-sm" x-text="`PnL: ${trade.pnl ? trade.pnl.toFixed(4) : 'N/A'}`"></p>
-                                        <p class="text-xs text-gray-500" x-text="trade.reason || 'N/A'"></p>
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-700/50 text-xs">
-                                    <div>
-                                        <span class="text-gray-400">Size</span>
-                                        <p class="font-mono" x-text="trade.size ? parseFloat(trade.size).toFixed(6) : 'N/A'"></p>
-                                    </div>
-                                    <div>
-                                        <span class="text-gray-400">Entry</span>
-                                        <p class="font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></p>
-                                    </div>
-                                    <div>
-                                        <span class="text-gray-400">Exit</span>
-                                        <p class="font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                        <div x-show="tradeHistory.length === 0" class="text-center py-12 text-gray-500">
-                            <p>No trades yet.</p>
-                        </div>
+            <!-- Trade History (Full Width) -->
+            <div class="lg:col-span-3 xl:col-span-4 card">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Trade History</h2>
+                    <div class="text-right">
+                        <span class="text-sm text-gray-400">Total PnL</span>
+                        <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
                     </div>
                 </div>
-
+                <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    <template x-for="trade in tradeHistory.slice(0, 10)" :key="trade.timestamp">
+                        <div class="trade-card" :class="trade.pnl_percent >= 0 ? 'border-green-500/20' : 'border-red-500/20'">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-bold text-base" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'">
+                                        <span x-text="trade.side"></span>
+                                        <span x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></span>
+                                    </p>
+                                    <p class="text-xs text-gray-400" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-mono text-sm" x-text="`PnL: ${trade.pnl ? trade.pnl.toFixed(4) : 'N/A'}`"></p>
+                                    <p class="text-xs text-gray-500" x-text="trade.reason || 'N/A'"></p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-700/50 text-xs">
+                                <div>
+                                    <span class="text-gray-400">Size</span>
+                                    <p class="font-mono" x-text="trade.size ? parseFloat(trade.size).toFixed(6) : 'N/A'"></p>
+                                </div>
+                                <div>
+                                    <span class="text-gray-400">Entry</span>
+                                    <p class="font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></p>
+                                </div>
+                                <div>
+                                    <span class="text-gray-400">Exit</span>
+                                    <p class="font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="tradeHistory.length === 0" class="text-center py-12 text-gray-500">
+                        <p>No trades yet.</p>
+                    </div>
+                </div>
             </div>
+>>>>>>> Stashed changes
         </div>
     </div>
 
