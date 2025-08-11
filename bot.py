@@ -15,6 +15,7 @@ from exchange import (
 )
 import signals
 from state import load_state, save_state, clear_state, save_trade_history, get_default_state
+from datetime import datetime, timezone
 from notifier import send_telegram_message
 from shared_state import strategy_params
 import tempfile
@@ -39,7 +40,8 @@ ADX_TREND_STRENGTH = 25 # Hardcoded ADX trend strength threshold
 POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 MIN_TRADE_USDT = float(os.getenv('MIN_TRADE_USDT', 10.0)) # New: Minimum trade amount in quote currency
-SIGNAL_EXPIRATION_MINUTES = int(os.getenv('SIGNAL_EXPIRATION_MINUTES', 5)) # New: How long a signal remains valid
+SIGNAL_EXPIRATION_MINUTES = int(os.getenv('SIGNAL_EXPIRATION_MINUTES', 5)) # How long a signal remains valid
+PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS = int(os.getenv('PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS', 120)) # Timeout for pending buy
 
 async def initialize_bot():
     """
@@ -196,11 +198,9 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     send_telegram_message(msg)
     logger.info(msg)
     
-    last_signal_state = state.get('previous_buy_signal', False)
-    new_state = get_default_state()
-    new_state['previous_buy_signal'] = last_signal_state
-    save_state(new_state)
-    logger.info(f"State cleared, but previous_buy_signal ({last_signal_state}) was preserved.")
+    # Clear the state after a sell
+    clear_state()
+    logger.info("State cleared after selling position.")
     
     return True
 
@@ -282,70 +282,98 @@ def handle_in_position(exchange, state, current_price, candles):
 
 def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate):
     """
-    Handles the logic when the bot is not in a position.
+    Handles the logic when the bot is not in a position, including buy signal confirmation.
     """
     is_buy_signal, analysis_details = signals.check_buy_signal(
-        candles_primary, 
-        candles_15min, 
+        candles_primary,
+        candles_15min,
         candles_trend,
         adx_trend_strength=ADX_TREND_STRENGTH
     )
-    previous_buy_signal = state.get('previous_buy_signal', False)
 
-    state['previous_buy_signal'] = is_buy_signal
-    save_state(state)
+    # --- PENDING BUY CONFIRMATION LOGIC ---
+    if state.get('pending_buy_confirmation'):
+        # Check for timeout
+        pending_time = datetime.fromisoformat(state['buy_signal_timestamp'])
+        if (datetime.now(timezone.utc) - pending_time).total_seconds() > PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS:
+            logger.info("Pending buy confirmation timed out. Cancelling.")
+            state['pending_buy_confirmation'] = False
+            state['buy_signal_timestamp'] = None
+            save_state(state)
+            return "Waiting (no position)", "Buy confirmation timed out.", analysis_details
 
-    if is_buy_signal and not previous_buy_signal:
-        logger.info("BUY SIGNAL CROSSOVER DETECTED.")
-        
-        # Profitability Check
-        current_atr = signals.calculate_atr(candles_primary)
-        if current_atr is None:
-            reason = "Could not calculate ATR for profitability check."
-            logger.warning(reason)
-            return "Waiting (no position)", reason, analysis_details
+        # Check if the signal is still valid
+        if not is_buy_signal:
+            logger.info("Buy signal disappeared during confirmation period. Cancelling.")
+            state['pending_buy_confirmation'] = False
+            state['buy_signal_timestamp'] = None
+            save_state(state)
+            return "Waiting (no position)", "Signal disappeared.", analysis_details
 
-        potential_tp_price = current_price + (current_atr * ATR_TP_MULTIPLIER)
-        break_even_price = current_price * (1 + 2 * fee_rate) # Simplified break-even calculation
+        # Check if the last candle is now closed
+        last_candle_closed = candles_primary and len(candles_primary[-1]) == 7 and candles_primary[-1][6]
+        if last_candle_closed:
+            logger.info("CONFIRMED BUY SIGNAL. Proceeding with purchase.")
+            
+            # --- Execute Buy ---
+            # Profitability Check
+            current_atr = signals.calculate_atr(candles_primary)
+            if current_atr is None:
+                reason = "Could not calculate ATR for profitability check."
+                logger.warning(reason)
+                return "Waiting (no position)", reason, analysis_details
 
-        if potential_tp_price <= break_even_price:
-            reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%)."
-            logger.info(reason)
-            return "Waiting (no position)", reason, analysis_details
+            potential_tp_price = current_price + (current_atr * ATR_TP_MULTIPLIER)
+            break_even_price = current_price * (1 + 2 * fee_rate)
 
-        logger.info(f"Profitability check passed: Potential TP ${potential_tp_price:.4f} > Break-even ${break_even_price:.4f}")
+            if potential_tp_price <= break_even_price:
+                reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%)."
+                logger.info(reason)
+                state['pending_buy_confirmation'] = False # Reset state
+                save_state(state)
+                return "Waiting (no position)", reason, analysis_details
 
-        quote_currency = SYMBOL.split('/')[1]
-        amount_usdt = balance.get(quote_currency, 0)
-        
-        if amount_usdt < MIN_TRADE_USDT:
-            reason = f"Insufficient balance ({amount_usdt:.2f} {quote_currency})."
-            logger.info(reason)
-            return "Waiting (no position)", reason, analysis_details
+            logger.info(f"Profitability check passed: Potential TP ${potential_tp_price:.4f} > Break-even ${break_even_price:.4f}")
 
-        buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
-        if buy_order:
-            new_state = load_state()
-            new_state['has_position'] = True
-            new_state['position'] = {
-                'entry_price': buy_order['price'],
-                'size': buy_order['amount'],
-                'timestamp': buy_order['datetime'],
-                'highest_price_after_tp': None,
-                'sl_price': None,
-                'tp_price': None,
-                'trailing_sl_price': None
-            }
-            if 'pending_buy_signal' in new_state:
-                del new_state['pending_buy_signal']
-            save_state(new_state)
-            msg = f"🟢 <b>BUY</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {analysis_details}"
-            send_telegram_message(msg)
-            logger.info(msg)
-            return "Buy", analysis_details, analysis_details
-    
-    if is_buy_signal:
-        return "Waiting (Signal Active)", "Buy signal is active, but no crossover.", analysis_details
+            quote_currency = SYMBOL.split('/')[1]
+            amount_usdt = balance.get(quote_currency, 0)
+            
+            if amount_usdt < MIN_TRADE_USDT:
+                reason = f"Insufficient balance ({amount_usdt:.2f} {quote_currency})."
+                logger.info(reason)
+                return "Waiting (no position)", reason, analysis_details
+
+            buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+            if buy_order:
+                new_state = load_state()
+                new_state['has_position'] = True
+                new_state['position'] = {
+                    'entry_price': buy_order['price'],
+                    'size': buy_order['amount'],
+                    'timestamp': buy_order['datetime'],
+                    'highest_price_after_tp': None,
+                    'sl_price': None,
+                    'tp_price': None,
+                    'trailing_sl_price': None
+                }
+                new_state['pending_buy_confirmation'] = False
+                new_state['buy_signal_timestamp'] = None
+                save_state(new_state)
+                msg = f"🟢 <b>BUY CONFIRMED</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {analysis_details}"
+                send_telegram_message(msg)
+                logger.info(msg)
+                return "Buy", "Buy signal confirmed and executed.", analysis_details
+        else:
+            logger.info("Waiting for candle to close to confirm buy signal...")
+            return "Waiting (Buy Pending)", "Awaiting candle close for confirmation.", analysis_details
+
+    # --- NEW SIGNAL DETECTION ---
+    if is_buy_signal and not state.get('pending_buy_confirmation'):
+        logger.info("Initial buy signal detected. Setting to pending confirmation.")
+        state['pending_buy_confirmation'] = True
+        state['buy_signal_timestamp'] = datetime.now(timezone.utc).isoformat()
+        save_state(state)
+        return "Waiting (Buy Pending)", "Awaiting candle close for confirmation.", analysis_details
 
     return "Waiting (no position)", "No buy signal.", analysis_details
 

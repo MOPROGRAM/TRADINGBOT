@@ -62,9 +62,13 @@ def get_default_state():
             "entry_price": None,
             "size": None,
             "timestamp": None,
-            "highest_price_after_tp": None
+            "highest_price_after_tp": None,
+            "sl_price": None,
+            "tp_price": None,
+            "trailing_sl_price": None
         },
-        "previous_buy_signal": False, # Add default for signal crossing
+        "pending_buy_confirmation": False,
+        "buy_signal_timestamp": None,
         "last_modified": None
     }
 

@@ -68,17 +68,24 @@ class BinanceWebSocketClient:
                         data = json.loads(message)
                         if 'k' in data:
                             kline = data['k']
-                            if 't' in kline and 'o' in kline and 'h' in kline and 'l' in kline and 'c' in kline and 'v' in kline: # Ensure all keys are present
+                            if 't' in kline and 'o' in kline and 'h' in kline and 'l' in kline and 'c' in kline and 'v' in kline and 'x' in kline:
+                                is_closed = kline['x']
                                 candle = [
-                                    kline['t'], # timestamp
-                                    float(kline['o']), # open
-                                    float(kline['h']), # high
-                                    float(kline['l']), # low
-                                    float(kline['c']), # close
-                                    float(kline['v'])  # volume
+                                    kline['t'],         # timestamp
+                                    float(kline['o']),  # open
+                                    float(kline['h']),  # high
+                                    float(kline['l']),  # low
+                                    float(kline['c']),  # close
+                                    float(kline['v']),  # volume
+                                    is_closed           # is_closed
                                 ]
                                 with self.lock:
-                                    self.kline_data[interval].append(candle)
+                                    # If the deque is not empty and the last candle is not closed, replace it
+                                    if self.kline_data[interval] and not self.kline_data[interval][-1][6]:
+                                        self.kline_data[interval][-1] = candle
+                                    else:
+                                        self.kline_data[interval].append(candle)
+
                                     if not self.kline_initialized[interval].is_set():
                                         self.kline_initialized[interval].set()
                                         logger.info(f"Initial {interval} kline data received and cached.")

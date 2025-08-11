@@ -31,17 +31,25 @@ def calculate_atr(candles, period=ATR_PERIOD):
         logger.warning(f"Not enough candles ({len(candles)}) to calculate ATR for period {period}.")
         return None
 
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
+    
+    # Use only closed candles for ATR calculation
+    df_closed = df[df['is_closed']].copy()
+
+    if len(df_closed) < period:
+        logger.warning(f"Not enough closed candles ({len(df_closed)}) to calculate ATR for period {period}.")
+        return None
+
     # --- Robust Data Cleaning ---
     for col in ['high', 'low', 'close']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df.dropna(subset=['high', 'low', 'close'], inplace=True)
     
-    if len(df) < period:
-        logger.warning(f"Not enough valid candles ({len(df)}) to calculate ATR after cleaning.")
+    if len(df_closed) < period:
+        logger.warning(f"Not enough valid candles ({len(df_closed)}) to calculate ATR after cleaning.")
         return None
 
-    atr = ta.atr(df['high'], df['low'], df['close'], length=period)
+    atr = ta.atr(df_closed['high'], df_closed['low'], df_closed['close'], length=period)
     
     # Final validation of the result
     if atr is None or atr.empty or pd.isna(atr.iloc[-1]):
@@ -50,10 +58,10 @@ def calculate_atr(candles, period=ATR_PERIOD):
     return atr.iloc[-1]
 
 def is_valid_candle(c):
-    # Checks if candle is a list of 6, and OHLCV are numeric.
+    # Checks if candle is a list of 7, and OHLCV are numeric.
     # Also checks for None values in the numeric parts.
-    return isinstance(c, list) and len(c) == 6 and \
-           all(isinstance(val, (int, float)) and val is not None for val in c[1:])
+    return isinstance(c, list) and len(c) == 7 and \
+           all(isinstance(val, (int, float)) and val is not None for val in c[1:6])
 
 def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_strength=25):
     """
@@ -74,13 +82,17 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         logger.warning(reason)
         return False, reason
 
-    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df_primary = pd.DataFrame(candles_primary, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
+    
+    # Use all data for price checks, but only closed candles for indicators
+    df_primary_closed = df_primary[df_primary['is_closed']].copy()
+
     for col in ['high', 'low', 'close']:
         df_primary[col] = pd.to_numeric(df_primary[col], errors='coerce')
-    df_primary.dropna(subset=['high', 'low', 'close'], inplace=True)
+    df_primary_closed.dropna(subset=['high', 'low', 'close'], inplace=True)
 
-    if len(df_primary) < max(VOLUME_SMA_PERIOD, TREND_EMA_PERIOD, 100):
-        reason = f"Insufficient valid primary candles ({len(df_primary)}) after cleaning for buy signal analysis."
+    if len(df_primary_closed) < max(VOLUME_SMA_PERIOD, TREND_EMA_PERIOD, 100):
+        reason = f"Insufficient valid closed primary candles ({len(df_primary_closed)}) for buy signal analysis."
         logger.warning(reason)
         return False, reason
 
@@ -90,13 +102,14 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         logger.warning(reason)
         return False, reason
 
-    df_15min = pd.DataFrame(candles_15min, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df_15min = pd.DataFrame(candles_15min, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
+    df_15min_closed = df_15min[df_15min['is_closed']].copy()
     for col in ['high', 'low', 'close']:
         df_15min[col] = pd.to_numeric(df_15min[col], errors='coerce')
-    df_15min.dropna(subset=['high', 'low', 'close'], inplace=True)
+    df_15min_closed.dropna(subset=['high', 'low', 'close'], inplace=True)
 
-    if len(df_15min) < TREND_EMA_PERIOD:
-        reason = f"Insufficient valid 15-min candles ({len(df_15min)}) after cleaning for buy signal analysis."
+    if len(df_15min_closed) < TREND_EMA_PERIOD:
+        reason = f"Insufficient valid closed 15-min candles ({len(df_15min_closed)}) for buy signal analysis."
         logger.warning(reason)
         return False, reason
 
@@ -106,40 +119,41 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         logger.warning(reason)
         return False, reason
 
-    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df_trend = pd.DataFrame(candles_trend, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
+    df_trend_closed = df_trend[df_trend['is_closed']].copy()
     for col in ['high', 'low', 'close']:
         df_trend[col] = pd.to_numeric(df_trend[col], errors='coerce')
-    df_trend.dropna(subset=['high', 'low', 'close'], inplace=True)
+    df_trend_closed.dropna(subset=['high', 'low', 'close'], inplace=True)
 
-    if len(df_trend) < TREND_EMA_PERIOD:
-        reason = f"Insufficient valid trend candles ({len(df_trend)}) after cleaning for buy signal analysis."
+    if len(df_trend_closed) < TREND_EMA_PERIOD:
+        reason = f"Insufficient valid closed trend candles ({len(df_trend_closed)}) for buy signal analysis."
         logger.warning(reason)
         return False, reason
 
-    # Calculate Indicators for Primary Timeframe
-    df_primary['rsi'] = ta.rsi(df_primary['close'], length=14)
-    df_primary['ema_short'] = ta.ema(df_primary['close'], length=EXIT_EMA_PERIOD_SHORT) # Using EXIT_EMA_PERIOD_SHORT for buy signal short EMA
-    df_primary['ema_long'] = ta.ema(df_primary['close'], length=EXIT_EMA_PERIOD_LONG) # Using EXIT_EMA_PERIOD_LONG for buy signal long EMA
-    # Calculate ADX
-    adx_df = ta.adx(df_primary['high'], df_primary['low'], df_primary['close'], length=14)
-    df_primary['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
+    # Calculate Indicators for Primary Timeframe on closed candles
+    df_primary_closed['rsi'] = ta.rsi(df_primary_closed['close'], length=14)
+    df_primary_closed['ema_short'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
+    df_primary_closed['ema_long'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_LONG)
+    adx_df = ta.adx(df_primary_closed['high'], df_primary_closed['low'], df_primary_closed['close'], length=14)
+    df_primary_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
 
+    # Get the latest values from the indicators calculated on closed candles
+    last_rsi_primary = df_primary_closed['rsi'].iloc[-1]
+    last_ema_short_primary = df_primary_closed['ema_short'].iloc[-1]
+    last_ema_long_primary = df_primary_closed['ema_long'].iloc[-1]
+    last_adx = df_primary_closed['adx'].iloc[-1]
+    prev_ema_short_primary = df_primary_closed['ema_short'].iloc[-2]
+    prev_ema_long_primary = df_primary_closed['ema_long'].iloc[-2]
 
+    # Get the latest close price from the original dataframe (which includes the live, non-closed candle)
     last_close_primary = df_primary['close'].iloc[-1]
-    last_rsi_primary = df_primary['rsi'].iloc[-1]
-    last_ema_short_primary = df_primary['ema_short'].iloc[-1]
-    last_ema_long_primary = df_primary['ema_long'].iloc[-1]
-    last_adx = df_primary['adx'].iloc[-1]
 
-    prev_ema_short_primary = df_primary['ema_short'].iloc[-2]
-    prev_ema_long_primary = df_primary['ema_long'].iloc[-2]
+    # Calculate Trend EMA for 15-min and 1-hour timeframes on their respective closed candles
+    df_15min_closed['ema_trend'] = ta.ema(df_15min_closed['close'], length=TREND_EMA_PERIOD)
+    df_trend_closed['ema_trend'] = ta.ema(df_trend_closed['close'], length=TREND_EMA_PERIOD)
 
-    # Calculate Trend EMA for 15-min and 1-hour timeframes
-    df_15min['ema_trend'] = ta.ema(df_15min['close'], length=TREND_EMA_PERIOD)
-    df_trend['ema_trend'] = ta.ema(df_trend['close'], length=TREND_EMA_PERIOD)
-
-    last_ema_trend_15min = df_15min['ema_trend'].iloc[-1]
-    last_ema_trend_1h = df_trend['ema_trend'].iloc[-1]
+    last_ema_trend_15min = df_15min_closed['ema_trend'].iloc[-1]
+    last_ema_trend_1h = df_trend_closed['ema_trend'].iloc[-1]
 
     # --- Condition Checks ---
     # Each condition is now evaluated independently and contributes to the analysis details.
@@ -196,30 +210,34 @@ def check_sell_signal(candles):
         logger.warning(reason)
         return False, reason
 
-    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
+    df_closed = df[df['is_closed']].copy()
+
     for col in ['high', 'low', 'close']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
-    df.dropna(subset=['high', 'low', 'close'], inplace=True)
+    df_closed.dropna(subset=['high', 'low', 'close'], inplace=True)
 
-    if len(df) < max(EXIT_EMA_PERIOD_LONG, TREND_EMA_PERIOD, ATR_PERIOD, 100):
-        reason = f"Insufficient valid candles ({len(df)}) after cleaning for sell signal analysis."
+    if len(df_closed) < max(EXIT_EMA_PERIOD_LONG, TREND_EMA_PERIOD, ATR_PERIOD, 100):
+        reason = f"Insufficient valid closed candles ({len(df_closed)}) for sell signal analysis."
         logger.warning(reason)
         return False, reason
 
-    # Calculate Indicators
-    df['rsi'] = ta.rsi(df['close'], length=14)
-    df['ema_short'] = ta.ema(df['close'], length=EXIT_EMA_PERIOD_SHORT)
-    df['ema_long'] = ta.ema(df['close'], length=EXIT_EMA_PERIOD_LONG)
-    df['ema_trend'] = ta.ema(df['close'], length=TREND_EMA_PERIOD)
+    # Calculate Indicators on closed candles
+    df_closed['rsi'] = ta.rsi(df_closed['close'], length=14)
+    df_closed['ema_short'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
+    df_closed['ema_long'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_LONG)
+    df_closed['ema_trend'] = ta.ema(df_closed['close'], length=TREND_EMA_PERIOD)
 
+    # Get latest values from indicators calculated on closed candles
+    last_rsi = df_closed['rsi'].iloc[-1]
+    last_ema_short = df_closed['ema_short'].iloc[-1]
+    last_ema_long = df_closed['ema_long'].iloc[-1]
+    last_ema_trend = df_closed['ema_trend'].iloc[-1]
+    prev_ema_short = df_closed['ema_short'].iloc[-2]
+    prev_ema_long = df_closed['ema_long'].iloc[-2]
+
+    # Get latest close price from the original dataframe
     last_close = df['close'].iloc[-1]
-    last_rsi = df['rsi'].iloc[-1]
-    last_ema_short = df['ema_short'].iloc[-1]
-    last_ema_long = df['ema_long'].iloc[-1]
-    last_ema_trend = df['ema_trend'].iloc[-1]
-
-    prev_ema_short = df['ema_short'].iloc[-2]
-    prev_ema_long = df['ema_long'].iloc[-2]
 
     # --- Condition Checks ---
     cond1_rsi_overbought = last_rsi > EXIT_RSI_LEVEL
