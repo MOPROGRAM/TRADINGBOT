@@ -53,14 +53,35 @@ def stop_websocket_client():
 
 def fetch_candles(exchange, symbol, timeframe, limit=100):
     """
-    Returns the latest candles, primarily from WebSocket cache, with REST API fallback.
+    Returns the latest candles, primarily from WebSocket cache, with a robust REST API fallback.
     """
+    # Attempt to get data from the WebSocket cache first
     candles = websocket_client.get_kline_data(timeframe)
-    if not candles:
-        logger.warning(f"WebSocket cache for {timeframe} candles is empty. No data available.")
-        return []
-    # Return the last 'limit' candles if available, otherwise all available candles
-    return list(candles)[-limit:] if len(candles) >= limit else list(candles)
+    
+    # Check if the cached data is sufficient
+    if len(candles) >= limit:
+        # logger.debug(f"Using WebSocket cache for {timeframe}. Cache size: {len(candles)}, required: {limit}")
+        return list(candles)[-limit:]
+
+    # If cache is insufficient, log it and fall back to REST API
+    logger.warning(f"WebSocket cache for {timeframe} is insufficient (have {len(candles)}, need {limit}). Fetching via REST API.")
+    
+    try:
+        # Fetch historical data using the exchange's fetch_ohlcv method
+        historical_candles_raw = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        
+        # The WebSocket client expects an 'is_closed' flag. We assume historical candles are closed.
+        historical_candles = [candle + [True] for candle in historical_candles_raw]
+        
+        logger.info(f"Successfully fetched {len(historical_candles)} candles for {timeframe} via REST API.")
+        return historical_candles
+        
+    except (ccxt.RateLimitExceeded, ccxt.DDoSProtection) as e:
+        logger.error(f"REST API call for {timeframe} failed due to rate limit/DDoS protection: {e}")
+        return [] # Return empty list on failure
+    except Exception as e:
+        logger.error(f"An unexpected error occurred during REST API fallback for {timeframe}: {e}", exc_info=True)
+        return [] # Return empty list on failure
 
 def get_current_price(exchange, symbol):
     """
