@@ -67,9 +67,7 @@ def is_valid_candle(c):
 
 def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_strength=25):
     """
-    Checks for buy signal using Multi-Timeframe Analysis.
-    Primary candles are for entry signals (5-min), candles_15min for 15-min trend,
-    and candles_trend for 1-hour trend confirmation.
+    Checks for buy signal using Multi-Timeframe Analysis with dynamic thresholds.
     """
     analysis_details = []
 
@@ -132,11 +130,34 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         logger.warning(reason)
         return False, reason
 
+    # --- Dynamic Threshold Adjustment based on Volatility ---
+    current_atr = calculate_atr(candles_primary)
+    last_close_primary = df_primary['close'].iloc[-1]
+    
+    # Default static thresholds
+    buy_rsi_level_dynamic = BUY_RSI_LEVEL
+    adx_trend_strength_dynamic = adx_trend_strength
+
+    if current_atr and last_close_primary > 0:
+        # Normalize ATR to get a volatility percentage
+        volatility_ratio = (current_atr / last_close_primary) * 100
+        
+        # Define volatility regimes (these can be tuned)
+        HIGH_VOLATILITY_THRESHOLD = 1.5 # e.g., 1.5% ATR of price
+        
+        if volatility_ratio > HIGH_VOLATILITY_THRESHOLD:
+            # High volatility: Relax RSI, demand stronger trend
+            buy_rsi_level_dynamic = BUY_RSI_LEVEL - 5 # e.g., 50 instead of 55
+            adx_trend_strength_dynamic = adx_trend_strength + 5 # e.g., 30 instead of 25
+            logger.info(f"High volatility detected (ATR: {volatility_ratio:.2f}%). Adjusted thresholds: RSI > {buy_rsi_level_dynamic}, ADX > {adx_trend_strength_dynamic}")
+        else:
+            logger.info(f"Normal volatility detected (ATR: {volatility_ratio:.2f}%). Using default thresholds.")
+
     # Calculate Indicators for Primary Timeframe on closed candles
     df_primary_closed['rsi'] = ta.rsi(df_primary_closed['close'], length=14)
     df_primary_closed['ema_short'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
     df_primary_closed['ema_long'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_LONG)
-    df_primary_closed['volume_sma'] = ta.sma(df_primary_closed['volume'], length=VOLUME_SMA_PERIOD) # New: Volume SMA
+    df_primary_closed['volume_sma'] = ta.sma(df_primary_closed['volume'], length=VOLUME_SMA_PERIOD)
     adx_df = ta.adx(df_primary_closed['high'], df_primary_closed['low'], df_primary_closed['close'], length=14)
     df_primary_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
 
@@ -150,8 +171,6 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     prev_ema_short_primary = df_primary_closed['ema_short'].iloc[-2]
     prev_ema_long_primary = df_primary_closed['ema_long'].iloc[-2]
 
-    # Get the latest close price from the original dataframe (which includes the live, non-closed candle)
-    last_close_primary = df_primary['close'].iloc[-1]
 
     # Calculate Trend EMA for 15-min and 1-hour timeframes on their respective closed candles
     df_15min_closed['ema_trend'] = ta.ema(df_15min_closed['close'], length=TREND_EMA_PERIOD)
@@ -162,11 +181,11 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
 
     # --- Condition Checks ---
     # Each condition is now evaluated independently and contributes to the analysis details.
-    cond1_rsi_in_range = BUY_RSI_LEVEL < last_rsi_primary < BUY_RSI_UPPER_LEVEL
+    cond1_rsi_in_range = buy_rsi_level_dynamic < last_rsi_primary < BUY_RSI_UPPER_LEVEL
     if cond1_rsi_in_range:
-        analysis_details.append(f"✅ RSI ({last_rsi_primary:.2f}) is in the buy zone ({BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL}).")
+        analysis_details.append(f"✅ RSI ({last_rsi_primary:.2f}) is in the dynamic buy zone ({buy_rsi_level_dynamic}-{BUY_RSI_UPPER_LEVEL}).")
     else:
-        analysis_details.append(f"❌ RSI ({last_rsi_primary:.2f}) is outside the buy zone ({BUY_RSI_LEVEL}-{BUY_RSI_UPPER_LEVEL}).")
+        analysis_details.append(f"❌ RSI ({last_rsi_primary:.2f}) is outside the dynamic buy zone ({buy_rsi_level_dynamic}-{BUY_RSI_UPPER_LEVEL}).")
 
     cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary >= last_ema_long_primary
     # Corrected logic for EMA crossover analysis text
@@ -190,13 +209,13 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
             analysis_details.append(f"❌ Live Price ({last_close_primary:.4f}) is not above 1h Trend EMA ({last_ema_trend_1h:.4f}).")
 
     # New: ADX Trend Strength Condition
-    cond4_adx_strong_trend = last_adx is not None and not pd.isna(last_adx) and last_adx > adx_trend_strength
+    cond4_adx_strong_trend = last_adx is not None and not pd.isna(last_adx) and last_adx > adx_trend_strength_dynamic
     if last_adx is None or pd.isna(last_adx):
         analysis_details.append(f"⚠️ ADX could not be calculated.")
     elif cond4_adx_strong_trend:
-        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates a strong trend (>{adx_trend_strength}).")
+        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates a strong trend (>{adx_trend_strength_dynamic}).")
     else:
-        analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength}).")
+        analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength_dynamic}).")
 
     # New: Volume Confirmation Condition
     cond5_volume_confirmation = last_volume_primary > (last_volume_sma_primary * VOLUME_CONFIRMATION_MULTIPLIER)
@@ -212,7 +231,7 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
 
 def check_sell_signal(candles):
     """
-    Checks for a sell signal based on bearish RSI divergence, EMA crossover, and price reversal.
+    Checks for a sell signal using an enhanced confirmation mechanism with OBV.
     """
     analysis_details = []
 
@@ -238,9 +257,13 @@ def check_sell_signal(candles):
     df_closed['ema_short'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
     df_closed['ema_long'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_LONG)
     df_closed['ema_trend'] = ta.ema(df_closed['close'], length=TREND_EMA_PERIOD)
-    df_closed['volume_sma'] = ta.sma(df_closed['volume'], length=VOLUME_SMA_PERIOD) # New: Volume SMA
+    df_closed['volume_sma'] = ta.sma(df_closed['volume'], length=VOLUME_SMA_PERIOD)
     adx_df = ta.adx(df_closed['high'], df_closed['low'], df_closed['close'], length=14)
-    df_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan # New: ADX for sell signal
+    df_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
+    
+    # --- New: On-Balance Volume (OBV) for sell confirmation ---
+    df_closed['obv'] = ta.obv(df_closed['close'], df_closed['volume'])
+    df_closed['obv_sma'] = ta.sma(df_closed['obv'], length=10) # Short-term SMA of OBV
 
     # --- Bearish RSI Divergence Check ---
     cond1_bearish_divergence = False
@@ -309,30 +332,39 @@ def check_sell_signal(candles):
     else:
         analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate trend weakness (above {ADX_TREND_STRENGTH}).")
 
-    # --- Bearish Volume Confirmation for Sell ---
-    cond4_bearish_volume_confirmation = False
+    # --- Enhanced Sell Confirmation with OBV ---
+    last_obv = df_closed['obv'].iloc[-1]
+    last_obv_sma = df_closed['obv_sma'].iloc[-1]
+    
+    # Condition 1: OBV should be trending down, indicating distribution.
+    cond_obv_trending_down = last_obv < last_obv_sma
+    if cond_obv_trending_down:
+        analysis_details.append(f"✅ OBV ({last_obv:.2f}) is below its SMA ({last_obv_sma:.2f}), confirming selling pressure.")
+    else:
+        analysis_details.append(f"❌ OBV ({last_obv:.2f}) is not below its SMA ({last_obv_sma:.2f}), indicating weak selling pressure.")
+
+    # Condition 2: A recent bearish candle with high volume (original confirmation)
+    cond_high_volume_bearish_candle = False
     if len(df_closed) >= VOLUME_SMA_PERIOD:
         last_closed_candle = df_closed.iloc[-1]
-        last_closed_candle_volume = last_closed_candle['volume']
-        last_volume_sma = df_closed['volume_sma'].iloc[-1]
-
-        # Check if the last closed candle is bearish (close < open) and has high volume
         if last_closed_candle['close'] < last_closed_candle['open'] and \
-           last_closed_candle_volume > last_volume_sma * VOLUME_CONFIRMATION_MULTIPLIER:
-            cond4_bearish_volume_confirmation = True
-    
-    if cond4_bearish_volume_confirmation:
-        analysis_details.append(f"✅ Bearish volume confirmation (Volume {last_closed_candle_volume:.2f} > {VOLUME_CONFIRMATION_MULTIPLIER}x SMA {last_volume_sma:.2f}).")
-    else:
-        analysis_details.append(f"❌ No bearish volume confirmation.")
+           last_closed_candle['volume'] > df_closed['volume_sma'].iloc[-1] * VOLUME_CONFIRMATION_MULTIPLIER:
+            cond_high_volume_bearish_candle = True
 
-    # A sell signal is triggered if at least two of the primary conditions are met AND bearish volume is confirmed.
+    if cond_high_volume_bearish_candle:
+        analysis_details.append(f"✅ High-volume bearish candle detected.")
+    else:
+        analysis_details.append(f"❌ No recent high-volume bearish candle.")
+
+    # A sell signal requires the primary conditions AND strong volume confirmation from OBV.
     primary_conditions_met = sum([cond1_bearish_divergence, cond2_ema_crossunder, cond3_reversal_drop, cond5_adx_weakness])
-    sell_signal_triggered = (primary_conditions_met >= 2) and cond4_bearish_volume_confirmation
+    volume_confirmation_met = cond_obv_trending_down and cond_high_volume_bearish_candle
+    
+    sell_signal_triggered = (primary_conditions_met >= 2) and volume_confirmation_met
 
     return sell_signal_triggered, " | ".join(analysis_details)
 
-def check_sl_tp(current_price, state, sl_price, tp_price, trailing_sl_price, trailing_tp_activation_price):
+def check_sl_tp(current_price, state, sl_price, tp_price, trailing_sl_price):
     """
     Checks if Stop Loss (SL), Take Profit (TP), or Trailing Stop Loss (TSL) conditions are met.
     """

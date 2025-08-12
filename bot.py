@@ -234,7 +234,7 @@ def write_web_status(status_data):
 
 def handle_in_position(exchange, state, current_price, candles):
     """
-    Handles the logic when the bot is in a position.
+    Handles the logic when the bot is in a position, including the enhanced ATR trailing stop.
     """
     if current_price is None:
         logger.error("handle_in_position called with a None current_price.")
@@ -257,23 +257,41 @@ def handle_in_position(exchange, state, current_price, candles):
             save_state(state)
             logger.info(f"Initial ATR-based SL/TP set. SL: {state['position']['sl_price']:.4f}, TP: {state['position']['tp_price']:.4f}")
         
+        # --- Enhanced Trailing Stop Loss Logic ---
+        # The trailing stop is activated only after the price has moved favorably.
         activation_price = entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER)
-        if current_price > activation_price:
-            highest_price = state['position'].get('highest_price_after_tp', entry_price)
+        
+        # Check if trailing stop has been activated
+        if state['position'].get('trailing_sl_activated') or current_price > activation_price:
+            if not state['position'].get('trailing_sl_activated'):
+                logger.info(f"Trailing Stop Loss activated at price {current_price:.4f} (activation target was {activation_price:.4f}).")
+                state['position']['trailing_sl_activated'] = True
+                # Set the initial highest price to the activation price itself
+                state['position']['highest_price_after_activation'] = current_price
+
+            # Track the highest price since activation
+            highest_price = state['position'].get('highest_price_after_activation', current_price)
             if current_price > highest_price:
-                state['position']['highest_price_after_tp'] = current_price
-                new_trailing_sl = current_price - (current_atr * ATR_TRAILING_SL_MULTIPLIER)
-                state['position']['trailing_sl_price'] = max(state['position']['sl_price'], new_trailing_sl, state['position']['trailing_sl_price'] or 0)
-                save_state(state)
-                logger.info(f"Trailing stop updated. New highest price: {current_price:.4f}, New Trailing SL: {state['position']['trailing_sl_price']:.4f}")
+                state['position']['highest_price_after_activation'] = current_price
+                highest_price = current_price
+                logger.info(f"New highest price recorded for trailing stop: {highest_price:.4f}")
+
+            # Calculate the new trailing stop loss
+            new_trailing_sl = highest_price - (current_atr * ATR_TRAILING_SL_MULTIPLIER)
+            
+            # The new trailing stop should not be lower than the initial stop loss or the previous trailing stop
+            current_trailing_sl = state['position'].get('trailing_sl_price', state['position']['sl_price'])
+            state['position']['trailing_sl_price'] = max(state['position']['sl_price'], new_trailing_sl, current_trailing_sl)
+            
+            save_state(state)
+            logger.info(f"Trailing stop updated. Highest Price: {highest_price:.4f}, New Trailing SL: {state['position']['trailing_sl_price']:.4f}")
 
     reason, _ = signals.check_sl_tp(
-        current_price, 
-        state, 
-        sl_price=state['position']['sl_price'], 
-        tp_price=state['position']['tp_price'], 
-        trailing_sl_price=state['position']['trailing_sl_price'],
-        trailing_tp_activation_price=entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER) if current_atr else None
+        current_price,
+        state,
+        sl_price=state['position']['sl_price'],
+        tp_price=state['position']['tp_price'],
+        trailing_sl_price=state['position']['trailing_sl_price']
     )
     if reason in ["SL", "TP", "TTP"]:
         if execute_sell_and_record_trade(exchange, state, reason, current_price):
@@ -357,10 +375,11 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
                     'entry_price': buy_order['price'],
                     'size': buy_order['amount'],
                     'timestamp': buy_order['datetime'],
-                    'highest_price_after_tp': None,
                     'sl_price': None,
                     'tp_price': None,
-                    'trailing_sl_price': None
+                    'trailing_sl_price': None,
+                    'trailing_sl_activated': False, # New flag for enhanced TSL
+                    'highest_price_after_activation': None # New field for TSL
                 }
                 new_state['pending_buy_confirmation'] = False
                 new_state['buy_signal_timestamp'] = None
