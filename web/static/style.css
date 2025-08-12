@@ -76,14 +76,10 @@ html, body {
     background-color: #374151;
 }
 
-/* Responsive adjustments for chart height and padding on smaller screens */
-@media (max-width: 1023px) {
-    /* Adjust padding for the chart card on smaller screens */
-    .chart-card-mobile-padding {
-        padding: 0.25rem !important; /* Small padding for chart card on smaller screens */
-        min-height: 600px !important; /* Ensure the card itself has a minimum height */
-    }
-    /* The #tradingview_chart will now expand due to flex-1 within the taller parent */
+/* Responsive adjustments for chart height and padding */
+.chart-card-padding {
+    padding: 0.25rem !important; /* Small padding for chart card on all screens */
+    min-height: 600px !important; /* Ensure the card itself has a minimum height */
 }
 
 @media (min-width: 1024px) {
@@ -93,10 +89,4 @@ html, body {
         padding-left: 0.5rem; /* Small horizontal padding */
         padding-right: 0.5rem; /* Small horizontal padding */
     }
-}
-
-/* Chart specific styling for 90% width and 10% side margins */
-#tradingview_chart {
-    width: 90% !important;
-    margin: 0 5% !important;
 }
