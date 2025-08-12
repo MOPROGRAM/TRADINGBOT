@@ -36,9 +36,9 @@
         <!-- Main Layout -->
         <div class="flex flex-col lg:flex-row gap-6">
             <!-- Left Column: Chart -->
-            <main class="lg:w-8/12 flex flex-col">
+            <main class="lg:w-8/12 flex flex-col chart-container">
                 <div class="card p-2 sm:p-4 flex flex-col flex-1 min-h-0 overflow-hidden chart-card-mobile-padding">
-                    <div id="tradingview_chart" class="flex-1 w-full"></div>
+                    <div id="tradingview_chart" class="flex-1 w-full h-full"></div>
                 </div>
             </main>
 
@@ -238,23 +238,8 @@
                     const chartContainer = document.getElementById('tradingview_chart');
                     if (!chartContainer) return;
 
-                    // Calculate available width and height for the chart
-                    // Considering the parent 'card' has p-2 (8px) or sm:p-4 (16px) padding
-                    const parentCard = chartContainer.closest('.card');
-                    let paddingX = 0;
-                    let paddingY = 0;
-                    if (parentCard) {
-                        const style = window.getComputedStyle(parentCard);
-                        paddingX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-                        paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-                    }
-
-                    const availableWidth = parentCard ? parentCard.clientWidth - paddingX : chartContainer.offsetWidth;
-                    const availableHeight = parentCard ? parentCard.clientHeight - paddingY : chartContainer.offsetHeight;
-
                     const widgetOptions = {
-                        "width": availableWidth - 4, // Subtract 4px for a small margin (2px on each side)
-                        "height": availableHeight - 4, // Subtract 4px for a small margin (2px on top/bottom)
+                        "autosize": true,
                         "symbol": `BINANCE:{{ symbol.replace('/', '') }}`,
                         "interval": "5",
                         "timezone": "Etc/UTC",
@@ -266,10 +251,6 @@
                         "allow_symbol_change": true,
                         "container_id": "tradingview_chart"
                     };
-
-                    // Set the container height explicitly if autosize is false
-                    chartContainer.style.width = `${widgetOptions.width}px`;
-                    chartContainer.style.height = `${widgetOptions.height}px`;
 
                     new TradingView.widget(widgetOptions);
                 }

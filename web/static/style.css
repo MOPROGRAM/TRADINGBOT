@@ -85,3 +85,10 @@ html, body {
     }
     /* The #tradingview_chart will now expand due to flex-1 within the taller parent */
 }
+
+@media (min-width: 1024px) {
+    .chart-container {
+        height: calc(100vh - 250px); /* Adjust 250px based on header/footer/padding height */
+        max-height: 800px; /* Optional: set a max-height if needed */
+    }
+}
