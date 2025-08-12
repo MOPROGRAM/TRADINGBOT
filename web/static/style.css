@@ -83,8 +83,7 @@ html, body {
 
 @media (min-width: 1024px) {
     .chart-container {
-        height: calc(100vh - 250px); /* Adjust 250px based on header/footer/padding height */
-        max-height: 800px; /* Optional: set a max-height if needed */
+        height: 80vh; /* Set a large height for the chart container */
         padding-left: 0.5rem; /* Small horizontal padding */
         padding-right: 0.5rem; /* Small horizontal padding */
     }

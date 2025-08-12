@@ -34,18 +34,18 @@
         </header>
 
         <!-- Main Layout -->
-        <div class="flex flex-col lg:flex-row gap-6 items-stretch">
-            <!-- Left Column: Chart -->
-            <main class="lg:w-8/12 flex flex-col chart-container">
+        <div class="flex flex-col gap-6">
+            <!-- Chart -->
+            <main class="w-full flex flex-col chart-container">
                 <div class="card flex flex-col flex-1 min-h-0 overflow-hidden chart-card-padding">
                     <div id="tradingview_chart" class="flex-1 w-full h-full"></div>
                 </div>
             </main>
 
-            <!-- Right Column: Info -->
-            <aside class="lg:w-4/12 flex flex-col gap-6">
+            <!-- Info Row -->
+            <aside class="w-full flex flex-col lg:flex-row gap-6">
                 <!-- Open Position -->
-                <div class="card" x-show="hasPosition" x-transition>
+                <div class="card lg:w-1/3" x-show="hasPosition" x-transition>
                     <h2 class="text-xl font-semibold mb-3">Open Position</h2>
                     <div class="grid grid-cols-3 gap-4 text-sm">
                         <div>
@@ -64,7 +64,7 @@
                 </div>
 
                 <!-- Live Signal & Analysis -->
-                <div class="card flex-1 flex flex-col">
+                <div class="card flex-1 flex flex-col lg:w-2/3">
                     <h2 class="text-xl font-semibold mb-3">Live Signal & Analysis</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="md:col-span-1 bg-gray-900/50 p-4 rounded-lg flex items-center justify-center">
