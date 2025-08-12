@@ -83,7 +83,7 @@ html, body {
 
 @media (min-width: 1024px) {
     .chart-container {
-        height: 60vh; /* Set height to 60% of the viewport height (2/3 of original) */
+        height: 75vh; /* Set height to 75% of the viewport height */
         padding-left: 0.5rem; /* Small horizontal padding */
         padding-right: 0.5rem; /* Small horizontal padding */
     }
@@ -92,7 +92,7 @@ html, body {
 /* Responsive adjustments for mobile and tablet */
 @media (max-width: 1023px) {
     .chart-container {
-        height: 53vh; /* Increase height on vertical screens (2/3 of original) */
+        height: 66.25vh; /* Increase height on vertical screens */
     }
 
     .chart-container .chart-card-padding {
