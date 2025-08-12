@@ -435,8 +435,6 @@ async def run_bot_tick():
     try:
         exchange = get_exchange()
         fng_value, _ = await get_fear_and_greed_index()
->>>>>>>
-        state = load_state()
         state = load_state()
 
         # Fetch trading fee and update strategy params
