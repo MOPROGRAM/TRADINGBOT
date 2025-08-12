@@ -79,7 +79,6 @@ html, body {
 /* Responsive adjustments for chart height and padding */
 .chart-card-padding {
     padding: 0.25rem !important; /* Small padding for chart card on all screens */
-    min-height: 600px !important; /* Ensure the card itself has a minimum height */
 }
 
 @media (min-width: 1024px) {
