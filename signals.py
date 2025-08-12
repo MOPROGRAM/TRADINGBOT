@@ -391,3 +391,36 @@ def check_sl_tp(current_price, state, sl_price, tp_price, trailing_sl_price):
         return "TP", "Take Profit triggered."
 
     return None, "No SL/TP/TSL triggered."
+
+def check_ema_tsl(current_price, candles):
+    """
+    Checks if the price has crossed below the short-term EMA, acting as a dynamic trailing stop.
+    """
+    if not candles or len(candles) < EXIT_EMA_PERIOD_SHORT:
+        return False, "Insufficient data for EMA TSL."
+
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
+    df_closed = df[df['is_closed']].copy()
+
+    if len(df_closed) < EXIT_EMA_PERIOD_SHORT:
+        return False, "Insufficient closed candles for EMA TSL."
+
+    for col in ['close']:
+        df_closed[col] = pd.to_numeric(df_closed[col], errors='coerce')
+    df_closed.dropna(subset=['close'], inplace=True)
+
+    if len(df_closed) < EXIT_EMA_PERIOD_SHORT:
+        return False, "Insufficient valid closed candles for EMA TSL."
+
+    ema_short = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
+    if ema_short is None or ema_short.empty:
+        return False, "Could not calculate short EMA."
+
+    last_ema_short = ema_short.iloc[-1]
+
+    if current_price < last_ema_short:
+        reason = f"EMA TSL triggered: Price ({current_price:.4f}) < EMA-{EXIT_EMA_PERIOD_SHORT} ({last_ema_short:.4f})."
+        logger.info(reason)
+        return True, reason
+    
+    return False, f"Price ({current_price:.4f}) >= EMA-{EXIT_EMA_PERIOD_SHORT} ({last_ema_short:.4f})."

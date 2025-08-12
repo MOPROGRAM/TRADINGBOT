@@ -18,6 +18,7 @@ from state import load_state, save_state, clear_state, save_trade_history, get_d
 from datetime import datetime, timezone
 from notifier import send_telegram_message
 from shared_state import strategy_params
+from sentiment import get_fear_and_greed_index
 import tempfile
 import atexit # For graceful shutdown
 
@@ -301,10 +302,16 @@ def handle_in_position(exchange, state, current_price, candles):
     if is_sell_signal:
         if execute_sell_and_record_trade(exchange, state, "Signal", current_price):
             return "Sold", "Exit Signal", True, analysis_details
+
+    # New: Check for EMA-based Trailing Stop Loss
+    is_ema_tsl, ema_tsl_reason = signals.check_ema_tsl(current_price, candles)
+    if is_ema_tsl:
+        if execute_sell_and_record_trade(exchange, state, "EMA TSL", current_price):
+            return "Sold", "EMA TSL", True, ema_tsl_reason
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 
-def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate):
+def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate, fng_value=None):
     """
     Handles the logic when the bot is not in a position, including buy signal confirmation.
     """
@@ -338,7 +345,15 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
         last_candle_closed = candles_primary and len(candles_primary[-1]) == 7 and candles_primary[-1][6]
         if last_candle_closed:
             logger.info("CONFIRMED BUY SIGNAL. Proceeding with purchase.")
-            
+
+            # --- Sentiment Analysis Check ---
+            if fng_value is not None and fng_value <= 20:
+                reason = f"Skipping buy due to Extreme Fear (F&G Index: {fng_value})."
+                logger.warning(reason)
+                # We don't reset the pending state here, to allow the bot to buy if sentiment improves
+                # while the technical signal is still valid.
+                return "Waiting (no position)", reason, analysis_details
+
             # --- Execute Buy ---
             # Profitability Check
             current_atr = signals.calculate_atr(candles_primary)
@@ -415,9 +430,13 @@ async def run_bot_tick():
     current_price = None
     balance = {}
     fee_rate = 0.0
+    fng_value = None
 
     try:
         exchange = get_exchange()
+        fng_value, _ = await get_fear_and_greed_index()
+>>>>>>>
+        state = load_state()
         state = load_state()
 
         # Fetch trading fee and update strategy params
@@ -468,7 +487,7 @@ async def run_bot_tick():
                 if trade_executed:
                     return
             else:
-                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate)
+                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate, fng_value)
 
     except ccxt.BaseError as e:
         logger.error(f"Bot tick CCXT error: {e}", exc_info=True)
