@@ -94,3 +94,9 @@ html, body {
         padding-right: 0.5rem; /* Small horizontal padding */
     }
 }
+
+/* Chart specific styling for 90% width and 10% side margins */
+#tradingview_chart {
+    width: 90% !important;
+    margin: 0 5% !important;
+}
