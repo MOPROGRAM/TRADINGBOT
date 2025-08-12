@@ -88,3 +88,14 @@ html, body {
         padding-right: 0.5rem; /* Small horizontal padding */
     }
 }
+
+/* Responsive adjustments for mobile and tablet */
+@media (max-width: 1023px) {
+    .chart-container {
+        height: 80vh; /* Increase height on vertical screens */
+    }
+
+    .chart-container .chart-card-padding {
+        padding: 1rem !important; /* Quadruple the padding on vertical screens */
+    }
+}
