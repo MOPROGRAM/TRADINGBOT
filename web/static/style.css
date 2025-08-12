@@ -78,9 +78,9 @@ html, body {
 
 /* Responsive adjustments for chart height and padding on smaller screens */
 @media (max-width: 1023px) {
-    /* Increase padding for the chart card on smaller screens */
+    /* Adjust padding for the chart card on smaller screens */
     .chart-card-mobile-padding {
-        padding: 0.125rem !important; /* Reduced padding for chart card on smaller screens */
+        padding: 0.25rem !important; /* Small padding for chart card on smaller screens */
         min-height: 600px !important; /* Ensure the card itself has a minimum height */
     }
     /* The #tradingview_chart will now expand due to flex-1 within the taller parent */
@@ -90,5 +90,7 @@ html, body {
     .chart-container {
         height: calc(100vh - 250px); /* Adjust 250px based on header/footer/padding height */
         max-height: 800px; /* Optional: set a max-height if needed */
+        padding-left: 0.5rem; /* Small horizontal padding */
+        padding-right: 0.5rem; /* Small horizontal padding */
     }
 }
