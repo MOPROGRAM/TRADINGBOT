@@ -130,26 +130,31 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         logger.warning(reason)
         return False, reason
 
-    # --- Dynamic Threshold Adjustment based on Volatility ---
+        # --- Dynamic Threshold Adjustment based on Volatility ---
     current_atr = calculate_atr(candles_primary)
     last_close_primary = df_primary['close'].iloc[-1]
     
     # Default static thresholds
     buy_rsi_level_dynamic = BUY_RSI_LEVEL
     adx_trend_strength_dynamic = adx_trend_strength
+    volume_multiplier_dynamic = VOLUME_CONFIRMATION_MULTIPLIER
 
     if current_atr and last_close_primary > 0:
-        # Normalize ATR to get a volatility percentage
         volatility_ratio = (current_atr / last_close_primary) * 100
         
-        # Define volatility regimes (these can be tuned)
-        HIGH_VOLATILITY_THRESHOLD = 1.5 # e.g., 1.5% ATR of price
+        HIGH_VOLATILITY_THRESHOLD = 1.5
+        LOW_VOLATILITY_THRESHOLD = 0.7
         
         if volatility_ratio > HIGH_VOLATILITY_THRESHOLD:
-            # High volatility: Relax RSI, demand stronger trend
-            buy_rsi_level_dynamic = BUY_RSI_LEVEL - 5 # e.g., 50 instead of 55
-            adx_trend_strength_dynamic = adx_trend_strength + 5 # e.g., 30 instead of 25
-            logger.info(f"High volatility detected (ATR: {volatility_ratio:.2f}%). Adjusted thresholds: RSI > {buy_rsi_level_dynamic}, ADX > {adx_trend_strength_dynamic}")
+            buy_rsi_level_dynamic = BUY_RSI_LEVEL - 5
+            adx_trend_strength_dynamic = adx_trend_strength + 5
+            volume_multiplier_dynamic = VOLUME_CONFIRMATION_MULTIPLIER + 0.5
+            logger.info(f"High volatility detected (ATR: {volatility_ratio:.2f}%). Stricter thresholds: ADX > {adx_trend_strength_dynamic}, Vol > {volume_multiplier_dynamic}x")
+        elif volatility_ratio < LOW_VOLATILITY_THRESHOLD:
+            buy_rsi_level_dynamic = BUY_RSI_LEVEL
+            adx_trend_strength_dynamic = adx_trend_strength - 5
+            volume_multiplier_dynamic = VOLUME_CONFIRMATION_MULTIPLIER - 0.4
+            logger.info(f"Low volatility detected (ATR: {volatility_ratio:.2f}%). Relaxed thresholds: ADX > {adx_trend_strength_dynamic}, Vol > {volume_multiplier_dynamic}x")
         else:
             logger.info(f"Normal volatility detected (ATR: {volatility_ratio:.2f}%). Using default thresholds.")
 
@@ -180,7 +185,16 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     last_ema_trend_1h = df_trend_closed['ema_trend'].iloc[-1]
 
     # --- Condition Checks ---
-    # Each condition is now evaluated independently and contributes to the analysis details.
+    # Safety Brake: Prevent buying if price is too far above the long-term trend EMA
+    PRICE_DEVIATION_LIMIT = 0.025 # 2.5%
+    cond0_price_not_overextended = last_close_primary < (last_ema_trend_1h * (1 + PRICE_DEVIATION_LIMIT))
+    if cond0_price_not_overextended:
+        analysis_details.append(f"✅ Price is not overextended from 1h EMA.")
+    else:
+        analysis_details.append(f"❌ Safety Brake: Price ({last_close_primary:.4f}) is too far above 1h EMA ({last_ema_trend_1h:.4f}). Entry blocked.")
+        # If the safety brake is on, no need to check other conditions
+        return False, " | ".join(analysis_details)
+
     cond1_rsi_in_range = buy_rsi_level_dynamic < last_rsi_primary < BUY_RSI_UPPER_LEVEL
     if cond1_rsi_in_range:
         analysis_details.append(f"✅ RSI ({last_rsi_primary:.2f}) is in the dynamic buy zone ({buy_rsi_level_dynamic}-{BUY_RSI_UPPER_LEVEL}).")
@@ -218,20 +232,20 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         analysis_details.append(f"❌ ADX ({last_adx:.2f}) indicates a weak or no trend (must be >{adx_trend_strength_dynamic}).")
 
     # New: Volume Confirmation Condition
-    cond5_volume_confirmation = last_volume_primary > (last_volume_sma_primary * VOLUME_CONFIRMATION_MULTIPLIER)
+    cond5_volume_confirmation = last_volume_primary > (last_volume_sma_primary * volume_multiplier_dynamic)
     if cond5_volume_confirmation:
-        analysis_details.append(f"✅ Volume ({last_volume_primary:.2f}) is {VOLUME_CONFIRMATION_MULTIPLIER}x above SMA ({last_volume_sma_primary:.2f}).")
+        analysis_details.append(f"✅ Volume ({last_volume_primary:.2f}) is {volume_multiplier_dynamic:.1f}x above SMA ({last_volume_sma_primary:.2f}).")
     else:
-        analysis_details.append(f"❌ Volume ({last_volume_primary:.2f}) is not {VOLUME_CONFIRMATION_MULTIPLIER}x above SMA ({last_volume_sma_primary:.2f}).")
+        analysis_details.append(f"❌ Volume ({last_volume_primary:.2f}) is not {volume_multiplier_dynamic:.1f}x above SMA ({last_volume_sma_primary:.2f}).")
 
-    # A buy signal is triggered only if all five conditions are met.
+    # A buy signal is triggered only if all conditions are met (including the safety brake checked earlier).
     buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend and cond5_volume_confirmation
 
     return buy_signal_triggered, " | ".join(analysis_details)
 
-def check_sell_signal(candles):
+def check_sell_signal(candles, adx_trend_strength=25):
     """
-    Checks for a sell signal using an enhanced confirmation mechanism with OBV.
+    Checks for a sell signal using an enhanced, dynamic confirmation mechanism.
     """
     analysis_details = []
 
@@ -264,6 +278,26 @@ def check_sell_signal(candles):
     # --- New: On-Balance Volume (OBV) for sell confirmation ---
     df_closed['obv'] = ta.obv(df_closed['close'], df_closed['volume'])
     df_closed['obv_sma'] = ta.sma(df_closed['obv'], length=10) # Short-term SMA of OBV
+
+    # --- Dynamic Thresholds for Sell Signal based on Volatility ---
+    current_atr = calculate_atr(candles)
+    last_close = df['close'].iloc[-1]
+    
+    # Default number of conditions required to trigger a sell
+    required_conditions = 2 
+    
+    if current_atr and last_close > 0:
+        volatility_ratio = (current_atr / last_close) * 100
+        
+        HIGH_VOLATILITY_THRESHOLD = 1.5
+        LOW_VOLATILITY_THRESHOLD = 0.7
+
+        if volatility_ratio > HIGH_VOLATILITY_THRESHOLD:
+            required_conditions = 1 # Quick exit in high volatility
+            logger.info(f"High volatility detected for sell. Required conditions: {required_conditions}")
+        elif volatility_ratio < LOW_VOLATILITY_THRESHOLD:
+            required_conditions = 3 # Patient exit in low volatility
+            logger.info(f"Low volatility detected for sell. Required conditions: {required_conditions}")
 
     # --- Bearish RSI Divergence Check ---
     cond1_bearish_divergence = False
@@ -324,13 +358,13 @@ def check_sell_signal(candles):
         analysis_details.append(f"❌ No significant price drop from recent high.")
 
     # New: ADX Weakness Condition for Sell
-    cond5_adx_weakness = last_adx is not None and not pd.isna(last_adx) and last_adx < ADX_TREND_STRENGTH
+    cond5_adx_weakness = last_adx is not None and not pd.isna(last_adx) and last_adx < adx_trend_strength
     if last_adx is None or pd.isna(last_adx):
         analysis_details.append(f"⚠️ ADX could not be calculated for weakness check.")
     elif cond5_adx_weakness:
-        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates trend weakness (below {ADX_TREND_STRENGTH}).")
+        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates trend weakness (below {adx_trend_strength}).")
     else:
-        analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate trend weakness (above {ADX_TREND_STRENGTH}).")
+        analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate trend weakness (above {adx_trend_strength}).")
 
     # --- Enhanced Sell Confirmation with OBV ---
     last_obv = df_closed['obv'].iloc[-1]
@@ -356,11 +390,11 @@ def check_sell_signal(candles):
     else:
         analysis_details.append(f"❌ No recent high-volume bearish candle.")
 
-    # A sell signal requires the primary conditions AND strong volume confirmation from OBV.
+    # A sell signal requires a dynamic number of primary conditions AND strong volume confirmation from OBV.
     primary_conditions_met = sum([cond1_bearish_divergence, cond2_ema_crossunder, cond3_reversal_drop, cond5_adx_weakness])
     volume_confirmation_met = cond_obv_trending_down and cond_high_volume_bearish_candle
     
-    sell_signal_triggered = (primary_conditions_met >= 2) and volume_confirmation_met
+    sell_signal_triggered = (primary_conditions_met >= required_conditions) and volume_confirmation_met
 
     return sell_signal_triggered, " | ".join(analysis_details)
 
