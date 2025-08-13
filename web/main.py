@@ -19,6 +19,8 @@ from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
 from bot import main_loop, POLL_SECONDS
 from shared_state import strategy_params
+from signals import check_buy_signal, check_sell_signal
+import pandas as pd
 
 logger = get_logger(__name__)
 app = FastAPI()
@@ -189,6 +191,86 @@ def get_status():
             "last_modified": None, "total_balance_usdt": 0.0,
             "connection_status": {}
         }
+
+@app.get("/api/backtest")
+async def backtest(request: Request):
+    logger.info("Starting historical signal analysis (backtest)...")
+    try:
+        # 1. Fetch a larger dataset for backtesting
+        limit = 1000 # Number of candles to backtest on
+        logger.info(f"Fetching {limit} candles for primary, 15m, and 1h timeframes...")
+        
+        # Use asyncio.gather to fetch all candles concurrently
+        primary_candles_raw, fifteen_min_candles_raw, trend_candles_raw = await asyncio.gather(
+            asyncio.to_thread(exchange.fetch_ohlcv, SYMBOL, '5m', limit=limit),
+            asyncio.to_thread(exchange.fetch_ohlcv, SYMBOL, '15m', limit=limit),
+            asyncio.to_thread(exchange.fetch_ohlcv, SYMBOL, '1h', limit=limit)
+        )
+
+        # Convert to DataFrame for easier manipulation and alignment
+        df_primary = pd.DataFrame(primary_candles_raw, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df_15m = pd.DataFrame(fifteen_min_candles_raw, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df_trend = pd.DataFrame(trend_candles_raw, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+
+        # Convert timestamp to datetime and set as index
+        for df in [df_primary, df_15m, df_trend]:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+
+        # 2. Initialize backtest state
+        trades = []
+        in_position = False
+        entry_price = 0
+        entry_timestamp = None
+        min_candles_for_signal = 100 # Minimum number of candles required to generate a signal
+
+        # 3. Iterate through the primary timeframe candles
+        logger.info(f"Iterating through {len(df_primary)} primary candles to find signals...")
+        for i in range(min_candles_for_signal, len(df_primary)):
+            current_timestamp = df_primary.index[i]
+            current_price = df_primary['close'].iloc[i]
+
+            # Get historical data slices for signal functions
+            # The signal functions expect lists of lists, with an 'is_closed' flag
+            # We assume all historical candles are closed (True)
+            primary_slice = [row.tolist() + [True] for index, row in df_primary.iloc[:i].iterrows()]
+            
+            # Align other timeframes to the current primary candle's timestamp
+            fifteen_min_slice = [row.tolist() + [True] for index, row in df_15m[df_15m.index <= current_timestamp].iterrows()]
+            trend_slice = [row.tolist() + [True] for index, row in df_trend[df_trend.index <= current_timestamp].iterrows()]
+
+            if not in_position:
+                # Check for a buy signal
+                buy_signal, _ = check_buy_signal(primary_slice, fifteen_min_slice, trend_slice)
+                if buy_signal:
+                    in_position = True
+                    entry_price = current_price
+                    entry_timestamp = current_timestamp
+                    logger.info(f"Backtest: Buy signal triggered at {entry_timestamp} - Price: {entry_price}")
+            else:
+                # Check for a sell signal
+                sell_signal, _ = check_sell_signal(primary_slice)
+                if sell_signal:
+                    pnl_percent = ((current_price - entry_price) / entry_price) * 100
+                    trades.append({
+                        "entry_timestamp": entry_timestamp.isoformat(),
+                        "entry_price": entry_price,
+                        "exit_timestamp": current_timestamp.isoformat(),
+                        "exit_price": current_price,
+                        "pnl_percent": pnl_percent
+                    })
+                    logger.info(f"Backtest: Sell signal triggered at {current_timestamp} - Price: {current_price} | PnL: {pnl_percent:.2f}%")
+                    in_position = False
+                    entry_price = 0
+                    entry_timestamp = None
+        
+        logger.info(f"Backtest finished. Found {len(trades)} trades.")
+        return trades
+
+    except Exception as e:
+        logger.error(f"Backtest API Error: {e}", exc_info=True)
+        return {"error": f"Failed to run backtest: {e}"}
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -97,6 +97,52 @@
 
         <!-- Trade History (Full Width) -->
         <div class="mt-6">
+            <!-- Historical Analysis Section -->
+            <div class="card mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Historical Signal Analysis</h2>
+                    <button @click="runBacktest()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed" :disabled="isBacktesting">
+                        <span x-show="!isBacktesting">Run Analysis</span>
+                        <span x-show="isBacktesting">
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+                <div x-show="backtestResults.length > 0" class="space-y-3 max-h-64 overflow-y-auto pr-2">
+                    <table class="w-full text-sm text-left text-gray-400">
+                        <thead class="text-xs text-gray-400 uppercase bg-gray-800/50">
+                            <tr>
+                                <th scope="col" class="px-4 py-2">Entry Time</th>
+                                <th scope="col" class="px-4 py-2">Entry Price</th>
+                                <th scope="col" class="px-4 py-2">Exit Time</th>
+                                <th scope="col" class="px-4 py-2">Exit Price</th>
+                                <th scope="col" class="px-4 py-2 text-right">PnL (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="trade in backtestResults" :key="trade.entry_timestamp">
+                                <tr class="border-b border-gray-700/50" :class="trade.pnl_percent >= 0 ? 'bg-green-900/10' : 'bg-red-900/10'">
+                                    <td class="px-4 py-2" x-text="new Date(trade.entry_timestamp).toLocaleString()"></td>
+                                    <td class="px-4 py-2 font-mono" x-text="trade.entry_price.toFixed(4)"></td>
+                                    <td class="px-4 py-2" x-text="new Date(trade.exit_timestamp).toLocaleString()"></td>
+                                    <td class="px-4 py-2 font-mono" x-text="trade.exit_price.toFixed(4)"></td>
+                                    <td class="px-4 py-2 font-mono text-right" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl_percent.toFixed(2) + '%'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+                <div x-show="backtestResults.length === 0 && !isBacktesting" class="text-center py-8 text-gray-500">
+                    <p>Click "Run Analysis" to see historical signal performance.</p>
+                </div>
+                 <div x-show="isBacktesting" class="text-center py-8 text-gray-400">
+                    <p>Running analysis on historical data... This may take a moment.</p>
+                </div>
+            </div>
+
             <div class="card">
                 <!-- Account Balance Bar -->
                 <div class="bg-gray-800/50 p-3 rounded-lg mb-4">
@@ -178,10 +224,38 @@
                 analysisDetails: 'Waiting for data...',
                 connectionStatus: {},
                 strategyParams: {},
+                isBacktesting: false,
+                backtestResults: [],
+                chartWidget: null,
+                chartMarkers: [],
+
                 init() {
                     this.loadDashboardData();
                     this.loadTradingViewChart();
                     setInterval(() => this.loadDashboardData(), 2000); // Refresh every 2 seconds
+                },
+
+                async runBacktest() {
+                    if (this.isBacktesting) return;
+                    this.isBacktesting = true;
+                    this.backtestResults = [];
+                    this.clearChartMarkers();
+
+                    try {
+                        const response = await fetch('/api/backtest');
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.error || `API Error: ${response.statusText}`);
+                        }
+                        const data = await response.json();
+                        this.backtestResults = data;
+                        this.drawBacktestMarkers(data);
+                    } catch (error) {
+                        console.error('Error running backtest:', error);
+                        alert(`Failed to run analysis: ${error.message}`);
+                    } finally {
+                        this.isBacktesting = false;
+                    }
                 },
 
                 async loadDashboardData() {
@@ -252,7 +326,53 @@
                         "container_id": "tradingview_chart"
                     };
 
-                    new TradingView.widget(widgetOptions);
+                    this.chartWidget = new TradingView.widget(widgetOptions);
+                    
+                    this.chartWidget.onChartReady(() => {
+                        console.log("TradingView Chart is ready.");
+                    });
+                },
+
+                drawBacktestMarkers(trades) {
+                    if (!this.chartWidget || !this.chartWidget.chart) {
+                        console.error("Chart widget not ready for drawing markers.");
+                        return;
+                    }
+                    
+                    this.clearChartMarkers(); // Clear previous markers first
+
+                    trades.forEach(trade => {
+                        // Create Buy Marker
+                        const buyMarkerId = this.chartWidget.chart().createShape(
+                            { time: new Date(trade.entry_timestamp).getTime() / 1000, price: trade.entry_price },
+                            { 
+                                shape: 'arrow_up', 
+                                color: '#22c55e', // green-500
+                                text: `Buy @ ${trade.entry_price.toFixed(4)}`
+                            }
+                        );
+                        this.chartMarkers.push(buyMarkerId);
+
+                        // Create Sell Marker
+                        const sellMarkerId = this.chartWidget.chart().createShape(
+                            { time: new Date(trade.exit_timestamp).getTime() / 1000, price: trade.exit_price },
+                            { 
+                                shape: 'arrow_down', 
+                                color: '#ef4444', // red-500
+                                text: `Sell @ ${trade.exit_price.toFixed(4)}\nPnL: ${trade.pnl_percent.toFixed(2)}%`
+                            }
+                        );
+                        this.chartMarkers.push(sellMarkerId);
+                    });
+                },
+
+                clearChartMarkers() {
+                    if (this.chartWidget && this.chartWidget.chart) {
+                        this.chartMarkers.forEach(markerId => {
+                            this.chartWidget.chart().removeEntity(markerId);
+                        });
+                        this.chartMarkers = [];
+                    }
                 }
             }
         }
