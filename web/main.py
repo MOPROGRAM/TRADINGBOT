@@ -31,6 +31,11 @@ API_CACHE = None
 LAST_API_CALL_TIME = 0
 CACHE_DURATION_SECONDS = 1 # Cache for 1 second to reduce load but keep it fresh
 
+# --- Backtest Caching ---
+BACKTEST_CACHE = None
+LAST_BACKTEST_TIME = 0
+BACKTEST_CACHE_DURATION_SECONDS = 3600 # Cache for 1 hour
+
 def run_bot_in_background():
     """
     Runs the bot's async main_loop in a separate thread.
@@ -194,10 +199,17 @@ def get_status():
 
 @app.get("/api/backtest")
 async def backtest(request: Request):
+    global BACKTEST_CACHE, LAST_BACKTEST_TIME
+    
+    current_time = time.time()
+    if BACKTEST_CACHE and (current_time - LAST_BACKTEST_TIME < BACKTEST_CACHE_DURATION_SECONDS):
+        logger.info("Returning cached backtest results.")
+        return BACKTEST_CACHE
+
     logger.info("Starting historical signal analysis (backtest)...")
     try:
-        # 1. Fetch a larger dataset for backtesting
-        limit = 1000 # Number of candles to backtest on
+        # 1. Fetch a smaller dataset for backtesting to reduce memory usage
+        limit = 300 # Reduced from 1000
         logger.info(f"Fetching {limit} candles for primary, 15m, and 1h timeframes...")
         
         # Use asyncio.gather to fetch all candles concurrently
@@ -265,6 +277,11 @@ async def backtest(request: Request):
                     entry_timestamp = None
         
         logger.info(f"Backtest finished. Found {len(trades)} trades.")
+        
+        # Cache the results
+        BACKTEST_CACHE = trades
+        LAST_BACKTEST_TIME = time.time()
+        
         return trades
 
     except Exception as e:
