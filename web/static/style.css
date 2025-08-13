@@ -83,7 +83,7 @@ html, body {
 
 @media (min-width: 1024px) {
     .chart-container {
-        height: 50vh; /* Set height to 75% of the viewport height */
+        height: 33vh; /* Set height to 75% of the viewport height */
         padding-left: 0.5rem; /* Small horizontal padding */
         padding-right: 0.5rem; /* Small horizontal padding */
     }
