@@ -300,12 +300,6 @@ def handle_in_position(exchange, state, current_price, candles):
     if is_sell_signal:
         if execute_sell_and_record_trade(exchange, state, "Signal", current_price):
             return "Sold", "Exit Signal", True, analysis_details
-
-    # New: Check for EMA-based Trailing Stop Loss
-    is_ema_tsl, ema_tsl_reason = signals.check_ema_tsl(current_price, candles)
-    if is_ema_tsl:
-        if execute_sell_and_record_trade(exchange, state, "EMA TSL", current_price):
-            return "Sold", "EMA TSL", True, ema_tsl_reason
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 

@@ -164,13 +164,22 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     df_primary_closed['ema_long'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_LONG)
     df_primary_closed['volume_sma'] = ta.sma(df_primary_closed['volume'], length=VOLUME_SMA_PERIOD)
     adx_df = ta.adx(df_primary_closed['high'], df_primary_closed['low'], df_primary_closed['close'], length=14)
-    df_primary_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
+    if adx_df is not None and not adx_df.empty:
+        df_primary_closed['adx'] = adx_df[f'ADX_14']
+        df_primary_closed['dmp'] = adx_df[f'DMP_14']
+        df_primary_closed['dmn'] = adx_df[f'DMN_14']
+    else:
+        df_primary_closed['adx'] = np.nan
+        df_primary_closed['dmp'] = np.nan
+        df_primary_closed['dmn'] = np.nan
 
     # Get the latest values from the indicators calculated on closed candles
     last_rsi_primary = df_primary_closed['rsi'].iloc[-1]
     last_ema_short_primary = df_primary_closed['ema_short'].iloc[-1]
     last_ema_long_primary = df_primary_closed['ema_long'].iloc[-1]
     last_adx = df_primary_closed['adx'].iloc[-1]
+    last_dmp = df_primary_closed['dmp'].iloc[-1]
+    last_dmn = df_primary_closed['dmn'].iloc[-1]
     last_volume_primary = df_primary_closed['volume'].iloc[-1] # New: Last volume
     last_volume_sma_primary = df_primary_closed['volume_sma'].iloc[-1] # New: Last volume SMA
     prev_ema_short_primary = df_primary_closed['ema_short'].iloc[-2]
@@ -238,8 +247,15 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     else:
         analysis_details.append(f"❌ Volume ({last_volume_primary:.2f}) is not {volume_multiplier_dynamic:.1f}x above SMA ({last_volume_sma_primary:.2f}).")
 
+    # New: DMI Confirmation
+    cond6_dmi_confirmation = last_dmp > last_dmn
+    if cond6_dmi_confirmation:
+        analysis_details.append(f"✅ DMI Confirmation (DI+ {last_dmp:.2f} > DI- {last_dmn:.2f}).")
+    else:
+        analysis_details.append(f"❌ DMI Confirmation (DI+ {last_dmp:.2f} <= DI- {last_dmn:.2f}).")
+
     # A buy signal is triggered only if all conditions are met (including the safety brake checked earlier).
-    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend and cond5_volume_confirmation
+    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend and cond5_volume_confirmation and cond6_dmi_confirmation
 
     return buy_signal_triggered, " | ".join(analysis_details)
 
@@ -273,7 +289,14 @@ def check_sell_signal(candles, adx_trend_strength=25):
     df_closed['ema_trend'] = ta.ema(df_closed['close'], length=TREND_EMA_PERIOD)
     df_closed['volume_sma'] = ta.sma(df_closed['volume'], length=VOLUME_SMA_PERIOD)
     adx_df = ta.adx(df_closed['high'], df_closed['low'], df_closed['close'], length=14)
-    df_closed['adx'] = adx_df[f'ADX_14'] if adx_df is not None and not adx_df.empty else np.nan
+    if adx_df is not None and not adx_df.empty:
+        df_closed['adx'] = adx_df[f'ADX_14']
+        df_closed['dmp'] = adx_df[f'DMP_14']
+        df_closed['dmn'] = adx_df[f'DMN_14']
+    else:
+        df_closed['adx'] = np.nan
+        df_closed['dmp'] = np.nan
+        df_closed['dmn'] = np.nan
     
     # --- New: On-Balance Volume (OBV) for sell confirmation ---
     df_closed['obv'] = ta.obv(df_closed['close'], df_closed['volume'])
@@ -335,7 +358,9 @@ def check_sell_signal(candles, adx_trend_strength=25):
     prev_ema_long = df_closed['ema_long'].iloc[-2]
     last_close = df['close'].iloc[-1] # Use last_close from original df for live price
     last_ema_trend = df_closed['ema_trend'].iloc[-1]
-    last_adx = df_closed['adx'].iloc[-1] # New: Last ADX for sell signal
+    last_adx = df_closed['adx'].iloc[-1]
+    last_dmp = df_closed['dmp'].iloc[-1]
+    last_dmn = df_closed['dmn'].iloc[-1]
 
     cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
     if last_ema_short < last_ema_long:
@@ -390,11 +415,18 @@ def check_sell_signal(candles, adx_trend_strength=25):
     else:
         analysis_details.append(f"❌ No recent high-volume bearish candle.")
 
-    # A sell signal requires a dynamic number of primary conditions AND strong volume confirmation from OBV.
+    # New: DMI Confirmation for Sell
+    cond6_dmi_confirmation = last_dmn > last_dmp
+    if cond6_dmi_confirmation:
+        analysis_details.append(f"✅ DMI Confirmation (DI- {last_dmn:.2f} > DI+ {last_dmp:.2f}).")
+    else:
+        analysis_details.append(f"❌ DMI Confirmation (DI- {last_dmn:.2f} <= DI+ {last_dmp:.2f}).")
+
+    # A sell signal requires a dynamic number of primary conditions AND strong volume confirmation from OBV AND DMI confirmation.
     primary_conditions_met = sum([cond1_bearish_divergence, cond2_ema_crossunder, cond3_reversal_drop, cond5_adx_weakness])
     volume_confirmation_met = cond_obv_trending_down and cond_high_volume_bearish_candle
     
-    sell_signal_triggered = (primary_conditions_met >= required_conditions) and volume_confirmation_met
+    sell_signal_triggered = (primary_conditions_met >= required_conditions) and volume_confirmation_met and cond6_dmi_confirmation
 
     return sell_signal_triggered, " | ".join(analysis_details)
 
