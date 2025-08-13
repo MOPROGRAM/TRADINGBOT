@@ -212,11 +212,10 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
 
     cond2_ema_crossover = prev_ema_short_primary < prev_ema_long_primary and last_ema_short_primary >= last_ema_long_primary
     # Corrected logic for EMA crossover analysis text
-    if last_ema_short_primary > last_ema_long_primary:
-        if cond2_ema_crossover:
-            analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short {last_ema_short_primary:.4f} > Long {last_ema_long_primary:.4f}).")
-        else:
-            analysis_details.append(f"✅ Short EMA ({last_ema_short_primary:.4f}) is above Long EMA ({last_ema_long_primary:.4f}).")
+    if cond2_ema_crossover:
+        analysis_details.append(f"✅ Bullish EMA crossover confirmed (Short {last_ema_short_primary:.4f} > Long {last_ema_long_primary:.4f}).")
+    elif last_ema_short_primary > last_ema_long_primary:
+        analysis_details.append(f"❌ No recent Bullish EMA crossover (Short {last_ema_short_primary:.4f} > Long {last_ema_long_primary:.4f}).")
     else:
         analysis_details.append(f"❌ Short EMA ({last_ema_short_primary:.4f}) is not above Long EMA ({last_ema_long_primary:.4f}).")
 
@@ -363,11 +362,10 @@ def check_sell_signal(candles, adx_trend_strength=25):
     last_dmn = df_closed['dmn'].iloc[-1]
 
     cond2_ema_crossunder = prev_ema_short > prev_ema_long and last_ema_short < last_ema_long
-    if last_ema_short < last_ema_long:
-        if cond2_ema_crossunder:
-            analysis_details.append(f"✅ Bearish EMA crossunder confirmed (Short EMA {last_ema_short:.4f} < Long EMA {last_ema_long:.4f}).")
-        else:
-            analysis_details.append(f"✅ Short EMA ({last_ema_short:.4f}) is below Long EMA ({last_ema_long:.4f}), but no recent crossunder.")
+    if cond2_ema_crossunder:
+        analysis_details.append(f"✅ Bearish EMA crossunder confirmed (Short EMA {last_ema_short:.4f} < Long EMA {last_ema_long:.4f}).")
+    elif last_ema_short < last_ema_long:
+        analysis_details.append(f"❌ No recent Bearish EMA crossunder (Short EMA {last_ema_short:.4f} < Long EMA {last_ema_long:.4f}).")
     else:
         analysis_details.append(f"❌ Short EMA ({last_ema_short:.4f}) is not below Long EMA ({last_ema_long:.4f}).")
 
