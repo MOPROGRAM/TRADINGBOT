@@ -34,7 +34,11 @@ TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # New: For multi-timeframe 
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
 ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
 ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
-ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVIFIER',
+ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVATION_MULTIPLIER', 2.0))
+ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
+SLIPPAGE_PERCENTAGE = float(os.getenv('SLIPPAGE_PERCENTAGE', 0.001)) # New: Estimated slippage percentage (e.g., 0.001 for 0.1%)
+
+POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
 DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
 MIN_TRADE_USDT = float(os.getenv('MIN_TRADE_USDT', 10.0)) # New: Minimum trade amount in quote currency
 SIGNAL_EXPIRATION_MINUTES = int(os.getenv('SIGNAL_EXPIRATION_MINUTES', 5)) # How long a signal remains valid
@@ -58,7 +62,6 @@ async def initialize_bot():
     strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
     strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT
-    strategy_params["adx_trend_strength"] = ADX_TREND_STRENGTH # Add ADX to strategy params
     strategy_params["trading_fee"] = 0.0 # Will be updated dynamically
     logger.info(f"Strategy parameters initialized: {strategy_params}")
     
@@ -313,8 +316,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
     is_buy_signal, analysis_details = signals.check_buy_signal(
         candles_primary,
         candles_15min,
-        candles_trend,
-        adx_trend_strength=ADX_TREND_STRENGTH
+        candles_trend
     )
 
     # --- PENDING BUY CONFIRMATION LOGIC ---
