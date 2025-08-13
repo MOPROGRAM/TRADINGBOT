@@ -83,14 +83,14 @@ html, body {
 
 @media (min-width: 1024px) {
     .chart-container {
-        height: 33vh; /* Set height to 75% of the viewport height */
+        height: 41.25vh; /* Set height to 75% of the viewport height */
     }
 }
 
 /* Responsive adjustments for mobile and tablet */
 @media (max-width: 1023px) {
     .chart-container {
-        height: 44.17vh; /* Increase height on vertical screens */
+        height: 55.21vh; /* Increase height on vertical screens */
     }
 
     .chart-container .chart-card-padding {
