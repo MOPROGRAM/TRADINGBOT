@@ -78,14 +78,12 @@ html, body {
 
 /* Responsive adjustments for chart height and padding */
 .chart-card-padding {
-    padding: 0.25rem !important; /* Small padding for chart card on all screens */
+    padding: 1rem !important; /* Consistent padding for chart card */
 }
 
 @media (min-width: 1024px) {
     .chart-container {
         height: 33vh; /* Set height to 75% of the viewport height */
-        padding-left: 0.5rem; /* Small horizontal padding */
-        padding-right: 0.5rem; /* Small horizontal padding */
     }
 }
 
