@@ -1,9 +1,58 @@
 import os
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
 from logger import get_logger
 from scipy.signal import find_peaks
+
+# --- Start of Custom TA Functions ---
+
+def ema(series, length):
+    return series.ewm(span=length, adjust=False).mean()
+
+def sma(series, length):
+    return series.rolling(window=length).mean()
+
+def rsi(series, length=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=length).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=length).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
+def atr(high, low, close, length=14):
+    high_low = high - low
+    high_close = np.abs(high - close.shift())
+    low_close = np.abs(low - close.shift())
+    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+    return ema(tr, length)
+
+def adx(high, low, close, length=14):
+    tr = atr(high, low, close, length=1) # True Range
+    
+    up_move = high.diff()
+    down_move = -low.diff()
+    
+    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0)
+    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0)
+    
+    plus_di = 100 * (ema(pd.Series(plus_dm), length) / atr(high, low, close, length))
+    minus_di = 100 * (ema(pd.Series(minus_dm), length) / atr(high, low, close, length))
+    
+    dx = 100 * (np.abs(plus_di - minus_di) / (plus_di + minus_di))
+    adx_series = ema(dx, length)
+    
+    df = pd.DataFrame({
+        f'ADX_{length}': adx_series,
+        f'DMP_{length}': plus_di,
+        f'DMN_{length}': minus_di
+    })
+    return df
+
+def obv(close, volume):
+    signing = np.sign(close.diff()).fillna(0)
+    return (volume * signing).cumsum()
+
+# --- End of Custom TA Functions ---
 
 logger = get_logger(__name__)
 
@@ -51,13 +100,13 @@ def calculate_atr(candles, period=ATR_PERIOD):
         logger.warning(f"Not enough valid candles ({len(df_closed)}) to calculate ATR after cleaning.")
         return None
 
-    atr = ta.atr(df_closed['high'], df_closed['low'], df_closed['close'], length=period)
+    atr_series = atr(df_closed['high'], df_closed['low'], df_closed['close'], length=period)
     
     # Final validation of the result
-    if atr is None or atr.empty or pd.isna(atr.iloc[-1]):
+    if atr_series is None or atr_series.empty or pd.isna(atr_series.iloc[-1]):
         return None
     
-    return atr.iloc[-1]
+    return atr_series.iloc[-1]
 
 def is_valid_candle(c):
     # Checks if candle is a list of 7, and OHLCV are numeric.
@@ -159,11 +208,11 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
             logger.info(f"Normal volatility detected (ATR: {volatility_ratio:.2f}%). Using default thresholds.")
 
     # Calculate Indicators for Primary Timeframe on closed candles
-    df_primary_closed['rsi'] = ta.rsi(df_primary_closed['close'], length=14)
-    df_primary_closed['ema_short'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
-    df_primary_closed['ema_long'] = ta.ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_LONG)
-    df_primary_closed['volume_sma'] = ta.sma(df_primary_closed['volume'], length=VOLUME_SMA_PERIOD)
-    adx_df = ta.adx(df_primary_closed['high'], df_primary_closed['low'], df_primary_closed['close'], length=14)
+    df_primary_closed['rsi'] = rsi(df_primary_closed['close'], length=14)
+    df_primary_closed['ema_short'] = ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
+    df_primary_closed['ema_long'] = ema(df_primary_closed['close'], length=EXIT_EMA_PERIOD_LONG)
+    df_primary_closed['volume_sma'] = sma(df_primary_closed['volume'], length=VOLUME_SMA_PERIOD)
+    adx_df = adx(df_primary_closed['high'], df_primary_closed['low'], df_primary_closed['close'], length=14)
     if adx_df is not None and not adx_df.empty:
         df_primary_closed['adx'] = adx_df[f'ADX_14']
         df_primary_closed['dmp'] = adx_df[f'DMP_14']
@@ -187,8 +236,8 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
 
 
     # Calculate Trend EMA for 15-min and 1-hour timeframes on their respective closed candles
-    df_15min_closed['ema_trend'] = ta.ema(df_15min_closed['close'], length=TREND_EMA_PERIOD)
-    df_trend_closed['ema_trend'] = ta.ema(df_trend_closed['close'], length=TREND_EMA_PERIOD)
+    df_15min_closed['ema_trend'] = ema(df_15min_closed['close'], length=TREND_EMA_PERIOD)
+    df_trend_closed['ema_trend'] = ema(df_trend_closed['close'], length=TREND_EMA_PERIOD)
 
     last_ema_trend_15min = df_15min_closed['ema_trend'].iloc[-1]
     last_ema_trend_1h = df_trend_closed['ema_trend'].iloc[-1]
@@ -282,12 +331,12 @@ def check_sell_signal(candles, adx_trend_strength=25):
         return False, reason
 
     # Calculate Indicators on closed candles
-    df_closed['rsi'] = ta.rsi(df_closed['close'], length=14)
-    df_closed['ema_short'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
-    df_closed['ema_long'] = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_LONG)
-    df_closed['ema_trend'] = ta.ema(df_closed['close'], length=TREND_EMA_PERIOD)
-    df_closed['volume_sma'] = ta.sma(df_closed['volume'], length=VOLUME_SMA_PERIOD)
-    adx_df = ta.adx(df_closed['high'], df_closed['low'], df_closed['close'], length=14)
+    df_closed['rsi'] = rsi(df_closed['close'], length=14)
+    df_closed['ema_short'] = ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
+    df_closed['ema_long'] = ema(df_closed['close'], length=EXIT_EMA_PERIOD_LONG)
+    df_closed['ema_trend'] = ema(df_closed['close'], length=TREND_EMA_PERIOD)
+    df_closed['volume_sma'] = sma(df_closed['volume'], length=VOLUME_SMA_PERIOD)
+    adx_df = adx(df_closed['high'], df_closed['low'], df_closed['close'], length=14)
     if adx_df is not None and not adx_df.empty:
         df_closed['adx'] = adx_df[f'ADX_14']
         df_closed['dmp'] = adx_df[f'DMP_14']
@@ -298,8 +347,8 @@ def check_sell_signal(candles, adx_trend_strength=25):
         df_closed['dmn'] = np.nan
     
     # --- New: On-Balance Volume (OBV) for sell confirmation ---
-    df_closed['obv'] = ta.obv(df_closed['close'], df_closed['volume'])
-    df_closed['obv_sma'] = ta.sma(df_closed['obv'], length=10) # Short-term SMA of OBV
+    df_closed['obv'] = obv(df_closed['close'], df_closed['volume'])
+    df_closed['obv_sma'] = sma(df_closed['obv'], length=10) # Short-term SMA of OBV
 
     # --- Dynamic Thresholds for Sell Signal based on Volatility ---
     current_atr = calculate_atr(candles)
@@ -476,7 +525,7 @@ def check_ema_tsl(current_price, candles):
     if len(df_closed) < EXIT_EMA_PERIOD_SHORT:
         return False, "Insufficient valid closed candles for EMA TSL."
 
-    ema_short = ta.ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
+    ema_short = ema(df_closed['close'], length=EXIT_EMA_PERIOD_SHORT)
     if ema_short is None or ema_short.empty:
         return False, "Could not calculate short EMA."
 
