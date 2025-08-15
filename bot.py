@@ -28,8 +28,8 @@ logger = get_logger(__name__)
 
 # Constants from .env
 SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
-TIMEFRAME = os.getenv('TIMEFRAME', '5m')
-TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # New: For multi-timeframe analysis
+TIMEFRAME = os.getenv('TIMEFRAME', '15m') # Strategy based on 15m timeframe
+TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # Higher timeframe for trend confirmation
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
 ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
@@ -48,22 +48,20 @@ async def initialize_bot():
     """
     Initializes strategy parameters and waits for WebSocket data.
     """
+    # Simplified for the 15m strategy
     strategy_params["timeframe"] = TIMEFRAME
     strategy_params["trend_timeframe"] = TREND_TIMEFRAME
-    strategy_params["buy_signal_period"] = signals.VOLUME_SMA_PERIOD
-    strategy_params["sell_signal_period_short"] = signals.EXIT_EMA_PERIOD_SHORT
-    strategy_params["sell_signal_period_long"] = signals.EXIT_EMA_PERIOD_LONG
-    strategy_params["trend_ema_period"] = signals.TREND_EMA_PERIOD
-    strategy_params["exit_rsi_level"] = signals.EXIT_RSI_LEVEL
+    strategy_params["sma_period"] = signals.TREND_SMA_PERIOD
+    strategy_params["rsi_period"] = signals.RSI_PERIOD
+    strategy_params["rsi_buy_level"] = signals.RSI_BUY_LEVEL
     strategy_params["atr_period"] = ATR_PERIOD
     strategy_params["atr_sl_multiplier"] = ATR_SL_MULTIPLIER
     strategy_params["atr_tp_multiplier"] = ATR_TP_MULTIPLIER
     strategy_params["atr_trailing_tp_activation_multiplier"] = ATR_TRAILING_TP_ACTIVATION_MULTIPLIER
     strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
-    strategy_params["buy_rsi_level"] = signals.BUY_RSI_LEVEL
     strategy_params["min_trade_usdt"] = MIN_TRADE_USDT
     strategy_params["trading_fee"] = 0.0 # Will be updated dynamically
-    logger.info(f"Strategy parameters initialized: {strategy_params}")
+    logger.info(f"Strategy parameters initialized for 15m SMA strategy: {strategy_params}")
     
     # First, populate cache with historical data
     exchange = get_exchange()
@@ -303,13 +301,12 @@ def handle_in_position(exchange, state, current_price, candles):
     
     return "Waiting (in position)", "No exit signal.", False, analysis_details
 
-def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate, fng_value=None):
+def handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend, fee_rate, fng_value=None):
     """
     Handles the logic when the bot is not in a position, including buy signal confirmation.
     """
     is_buy_signal, analysis_details = signals.check_buy_signal(
         candles_primary,
-        candles_15min,
         candles_trend
     )
 
@@ -417,7 +414,7 @@ async def run_bot_tick():
     signal = "Initializing"
     signal_reason = "Bot tick started."
     analysis_details = "Initializing..."
-    candles_primary, candles_15min, candles_trend = [], [], []
+    candles_primary, candles_trend = [], []
     current_price = None
     balance = {}
     fee_rate = 0.0
@@ -454,14 +451,13 @@ async def run_bot_tick():
             state = load_state()
 
         current_price = get_current_price(exchange, SYMBOL)
-        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200)
-        candles_15min = fetch_candles(exchange, SYMBOL, '15m', limit=200)
+        # Primary timeframe is now 15m, so we only need it and the trend timeframe
+        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) 
         candles_trend = fetch_candles(exchange, SYMBOL, TREND_TIMEFRAME, limit=100)
 
         required_lengths = {
             "price": current_price is not None,
-            "primary": len(candles_primary) >= 50,
-            "15min": len(candles_15min) >= 200,
+            "primary": len(candles_primary) >= 50, # Need at least 50 for SMA50
             "trend": len(candles_trend) >= 50
         }
 
@@ -472,11 +468,13 @@ async def run_bot_tick():
             logger.warning(signal_reason)
         else:
             if state.get('has_position'):
+                # Pass primary candles (15m) for sell signal and ATR calculation
                 signal, signal_reason, trade_executed, analysis_details = handle_in_position(exchange, state, current_price, candles_primary)
                 if trade_executed:
                     return
             else:
-                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_15min, candles_trend, fee_rate, fng_value)
+                # Pass primary (15m) and trend (1h) candles for buy signal
+                signal, signal_reason, analysis_details = handle_no_position(exchange, state, balance, current_price, candles_primary, candles_trend, fee_rate, fng_value)
 
     except ccxt.BaseError as e:
         logger.error(f"Bot tick CCXT error: {e}", exc_info=True)
