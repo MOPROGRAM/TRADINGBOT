@@ -41,7 +41,7 @@ SLIPPAGE_PERCENTAGE = 0.001 # Estimated slippage percentage (0.1%)
 
 # General bot settings
 POLL_SECONDS = 10
-DRY_RUN = False # Set to True for testing without real orders
+DRY_RUN = False # Set to False for live trading
 MIN_TRADE_USDT = 10.0 # Minimum trade amount in quote currency
 PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS = 120 # Timeout for pending buy
 
