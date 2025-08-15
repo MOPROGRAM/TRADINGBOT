@@ -3,22 +3,21 @@ import ccxt
 from dotenv import load_dotenv
 from logger import get_logger
 import time
-from websocket_client import BinanceWebSocketClient # Import the new WebSocket client
-from bot import DRY_RUN, SYMBOL, TIMEFRAME # Import config from bot.py
+from websocket_client import BinanceWebSocketClient
+import config # Import the new config file
 
 load_dotenv()
 logger = get_logger(__name__)
 
+# API keys are still loaded from environment variables
 API_KEY = os.getenv('BINANCE_API_KEY')
 API_SECRET = os.getenv('BINANCE_API_SECRET')
-TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # Ensure this is defined for WebSocket client
-FIFTEEN_MIN_TIMEFRAME = '15m' # Hardcode 15m for EMA 200
 
 # Initialize WebSocket client globally
 # It will be started/stopped by bot.py
 websocket_client = BinanceWebSocketClient(
-    symbol=SYMBOL,
-    kline_intervals=[TIMEFRAME, FIFTEEN_MIN_TIMEFRAME, TREND_TIMEFRAME]
+    symbol=config.SYMBOL,
+    kline_intervals=[config.TIMEFRAME, config.TREND_TIMEFRAME]
 )
 
 def get_exchange():
@@ -30,7 +29,7 @@ def get_exchange():
             'defaultType': 'spot',
         },
     })
-    if DRY_RUN:
+    if config.DRY_RUN:
         exchange.set_sandbox_mode(True)
         logger.info("Exchange is in SANDBOX mode.")
     return exchange
@@ -91,7 +90,7 @@ def get_current_price(exchange, symbol):
     return price
 
 def create_market_buy_order(exchange, symbol, amount_usdt):
-    if DRY_RUN:
+    if config.DRY_RUN:
         logger.info(f"DRY RUN: Would buy {symbol} with {amount_usdt} USDT.")
         price = get_current_price(exchange, symbol)
         if not price:
@@ -114,9 +113,9 @@ def create_market_buy_order(exchange, symbol, amount_usdt):
         return None
 
 def get_account_balance(exchange):
-    if DRY_RUN:
+    if config.DRY_RUN:
         logger.info("DRY RUN: Simulating account balance.")
-        base_currency, quote_currency = SYMBOL.split('/')
+        base_currency, quote_currency = config.SYMBOL.split('/')
         # In dry run, return a simple dictionary similar to the 'free' balance structure.
         return {
             quote_currency: 1000.0,
@@ -151,7 +150,7 @@ def fetch_last_buy_trade(exchange, symbol, lookback_limit=25):
         return None
 
 def create_market_sell_order(exchange, symbol, size):
-    if DRY_RUN:
+    if config.DRY_RUN:
         logger.info(f"DRY RUN: Would sell {size} of {symbol}.")
         price = get_current_price(exchange, symbol)
         if not price:

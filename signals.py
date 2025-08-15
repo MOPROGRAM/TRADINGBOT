@@ -1,24 +1,16 @@
-import os
 import pandas as pd
 import pandas_ta as ta
 from logger import get_logger
+import config # Import the new config file
 
 logger = get_logger(__name__)
-
-# --- Parameters for the 15m SMA Strategy (Hardcoded) ---
-TREND_SMA_PERIOD = 50
-RSI_PERIOD = 14
-RSI_BUY_LEVEL = 40 # Buy when RSI crosses above this level from a local bottom
-
-# --- ATR Parameters (Hardcoded) ---
-ATR_PERIOD = 14
 
 def is_valid_candle(c):
     """Checks if a candle has the correct format and numeric values."""
     return isinstance(c, list) and len(c) == 7 and \
            all(isinstance(val, (int, float)) and val is not None for val in c[1:6])
 
-def calculate_atr(candles, period=ATR_PERIOD):
+def calculate_atr(candles, period=config.ATR_PERIOD):
     """
     Calculates the Average True Range (ATR) from candle data.
     """
@@ -57,8 +49,8 @@ def check_buy_signal(candles_15m, candles_1h):
     candles_15m = [c for c in candles_15m if is_valid_candle(c)]
     candles_1h = [c for c in candles_1h if is_valid_candle(c)]
 
-    if len(candles_15m) < TREND_SMA_PERIOD or len(candles_1h) < TREND_SMA_PERIOD:
-        reason = f"Insufficient data: 15m candles ({len(candles_15m)}), 1h candles ({len(candles_1h)}). Need at least {TREND_SMA_PERIOD}."
+    if len(candles_15m) < config.TREND_SMA_PERIOD or len(candles_1h) < config.TREND_SMA_PERIOD:
+        reason = f"Insufficient data: 15m candles ({len(candles_15m)}), 1h candles ({len(candles_1h)}). Need at least {config.TREND_SMA_PERIOD}."
         return False, reason
 
     df_15m = pd.DataFrame(candles_15m, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
@@ -68,14 +60,14 @@ def check_buy_signal(candles_15m, candles_1h):
     df_15m_closed = df_15m[df_15m['is_closed']].copy()
     df_1h_closed = df_1h[df_1h['is_closed']].copy()
 
-    if len(df_15m_closed) < TREND_SMA_PERIOD or len(df_1h_closed) < TREND_SMA_PERIOD:
+    if len(df_15m_closed) < config.TREND_SMA_PERIOD or len(df_1h_closed) < config.TREND_SMA_PERIOD:
         reason = f"Insufficient closed candles for analysis."
         return False, reason
 
     # --- Indicator Calculation ---
-    df_15m_closed['sma50'] = ta.sma(df_15m_closed['close'], length=TREND_SMA_PERIOD)
-    df_1h_closed['sma50'] = ta.sma(df_1h_closed['close'], length=TREND_SMA_PERIOD)
-    df_15m_closed['rsi'] = ta.rsi(df_15m_closed['close'], length=RSI_PERIOD)
+    df_15m_closed['sma50'] = ta.sma(df_15m_closed['close'], length=config.TREND_SMA_PERIOD)
+    df_1h_closed['sma50'] = ta.sma(df_1h_closed['close'], length=config.TREND_SMA_PERIOD)
+    df_15m_closed['rsi'] = ta.rsi(df_15m_closed['close'], length=config.RSI_PERIOD)
 
     # --- Get Latest Values ---
     last_close = df_15m['close'].iloc[-1]
@@ -97,9 +89,9 @@ def check_buy_signal(candles_15m, candles_1h):
     else:
         analysis_details.append(f"❌ Price ({last_close:.4f}) <= 1h SMA50 ({last_sma_1h:.4f})")
 
-    cond3_rsi_crossover = prev_rsi <= RSI_BUY_LEVEL and last_rsi > RSI_BUY_LEVEL
+    cond3_rsi_crossover = prev_rsi <= config.RSI_BUY_LEVEL and last_rsi > config.RSI_BUY_LEVEL
     if cond3_rsi_crossover:
-        analysis_details.append(f"✅ RSI crossed up from local bottom ({last_rsi:.2f} > {RSI_BUY_LEVEL})")
+        analysis_details.append(f"✅ RSI crossed up from local bottom ({last_rsi:.2f} > {config.RSI_BUY_LEVEL})")
     else:
         analysis_details.append(f"❌ RSI ({last_rsi:.2f}) has not crossed up from a local bottom.")
 
@@ -116,7 +108,7 @@ def check_sell_signal(candles_15m):
 
     # --- Data Validation ---
     candles_15m = [c for c in candles_15m if is_valid_candle(c)]
-    if len(candles_15m) < TREND_SMA_PERIOD:
+    if len(candles_15m) < config.TREND_SMA_PERIOD:
         return False, f"Insufficient 15m candles ({len(candles_15m)}) for sell signal."
 
     df_15m = pd.DataFrame(candles_15m, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'is_closed'])
@@ -126,11 +118,11 @@ def check_sell_signal(candles_15m):
         return False, "Waiting for previous candle to close to confirm SMA break."
 
     df_15m_closed = df_15m[df_15m['is_closed']].copy()
-    if len(df_15m_closed) < TREND_SMA_PERIOD:
+    if len(df_15m_closed) < config.TREND_SMA_PERIOD:
         return False, "Insufficient closed 15m candles for sell signal."
 
     # --- Indicator Calculation ---
-    df_15m_closed['sma50'] = ta.sma(df_15m_closed['close'], length=TREND_SMA_PERIOD)
+    df_15m_closed['sma50'] = ta.sma(df_15m_closed['close'], length=config.TREND_SMA_PERIOD)
 
     # --- Get Latest Values ---
     # Check the last CLOSED candle's price against the SMA

@@ -26,37 +26,21 @@ import atexit # For graceful shutdown
 load_dotenv()
 logger = get_logger(__name__)
 
-# --- Bot & Strategy Parameters (Hardcoded) ---
-SYMBOL = 'XLM/USDT'
-TIMEFRAME = '15m'
-TREND_TIMEFRAME = '1h'
-
-# ATR-based SL/TP parameters
-ATR_PERIOD = 14
-ATR_SL_MULTIPLIER = 1.5
-ATR_TP_MULTIPLIER = 3.0
-ATR_TRAILING_TP_ACTIVATION_MULTIPLIer = 2.0
-ATR_TRAILING_SL_MULTIPLIER = 1.0
-SLIPPAGE_PERCENTAGE = 0.001 # Estimated slippage percentage (0.1%)
-
-# General bot settings
-POLL_SECONDS = 10
-DRY_RUN = False # Set to False for live trading
-MIN_TRADE_USDT = 10.0 # Minimum trade amount in quote currency
-PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS = 120 # Timeout for pending buy
+# Import all configurations from the central config file
+import config
 
 async def initialize_bot():
     """
     Initializes strategy parameters and waits for WebSocket data.
     """
     # Parameters are now hardcoded, this function mainly initializes the connection
-    logger.info(f"Initializing bot for {SYMBOL} on {TIMEFRAME} timeframe.")
-    logger.info(f"Strategy Parameters: SMA={signals.TREND_SMA_PERIOD}, RSI_Period={signals.RSI_PERIOD}, RSI_Buy_Level={signals.RSI_BUY_LEVEL}")
+    logger.info(f"Initializing bot for {config.SYMBOL} on {config.TIMEFRAME} timeframe.")
+    logger.info(f"Strategy Parameters: SMA={config.TREND_SMA_PERIOD}, RSI_Period={config.RSI_PERIOD}, RSI_Buy_Level={config.RSI_BUY_LEVEL}")
     
     # First, populate cache with historical data
     exchange = get_exchange()
     try:
-        websocket_client.populate_historical_candles(exchange, SYMBOL)
+        websocket_client.populate_historical_candles(exchange, config.SYMBOL)
     except (ccxt.RateLimitExceeded, ccxt.DDoSProtection) as e:
         logger.warning(f"Initial historical data fetch failed due to rate limit/DDoS protection: {e}. Bot will proceed and rely on live WebSocket data to build history.")
     except Exception as e:
@@ -78,7 +62,7 @@ async def initialize_bot():
     logger.info("Historical data populated and live stream confirmed. Starting main bot loop.")
 
 
-def sync_position_with_exchange(exchange, symbol):
+def sync_position_with_exchange(exchange, symbol=config.SYMBOL):
     """
     Checks the exchange for an existing position and syncs it with the local state.
     """
@@ -156,7 +140,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     logger.info(f"Executing sell for reason: {reason}")
     
     balance = get_account_balance(exchange)
-    base_currency = SYMBOL.split('/')[0]
+    base_currency = config.SYMBOL.split('/')[0]
     actual_sell_amount = balance.get(base_currency, 0)
     
     if actual_sell_amount < 1:
@@ -166,7 +150,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
         return False
 
     logger.info(f"State size was {state['position']['size']}, actual balance is {actual_sell_amount}. Selling actual balance.")
-    sell_order = create_market_sell_order(exchange, SYMBOL, actual_sell_amount)
+    sell_order = create_market_sell_order(exchange, config.SYMBOL, actual_sell_amount)
     
     if not sell_order:
         logger.error(f"Failed to create sell order for {reason}.")
@@ -177,7 +161,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     pnl_percent = ((exit_price - entry_price) / entry_price) * 100
     
     trade_record = {
-        "symbol": SYMBOL,
+        "symbol": config.SYMBOL,
         "entry_price": entry_price,
         "exit_price": exit_price,
         "size": sell_order['amount'],
@@ -187,7 +171,7 @@ def execute_sell_and_record_trade(exchange, state, reason, current_price):
     }
     save_trade_history(trade_record)
     
-    msg = f"✅ <b>{reason.upper()} SELL</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>\nPnL: <code>{pnl_percent:.2f}%</code>"
+    msg = f"✅ <b>{reason.upper()} SELL</b>\nSymbol: <code>{config.SYMBOL}</code>\nPrice: <code>${current_price:.4f}</code>\nPnL: <code>{pnl_percent:.2f}%</code>"
     send_telegram_message(msg)
     logger.info(msg)
     
@@ -238,15 +222,15 @@ def handle_in_position(exchange, state, current_price, candles):
     current_atr = signals.calculate_atr(candles)
     if current_atr is not None:
         if state['position']['sl_price'] is None or state['position']['tp_price'] is None:
-            state['position']['sl_price'] = entry_price - (current_atr * ATR_SL_MULTIPLIER)
-            state['position']['tp_price'] = entry_price + (current_atr * ATR_TP_MULTIPLIER)
-            state['position']['trailing_sl_price'] = entry_price - (current_atr * ATR_SL_MULTIPLIER)
+            state['position']['sl_price'] = entry_price - (current_atr * config.ATR_SL_MULTIPLIER)
+            state['position']['tp_price'] = entry_price + (current_atr * config.ATR_TP_MULTIPLIER)
+            state['position']['trailing_sl_price'] = entry_price - (current_atr * config.ATR_SL_MULTIPLIER)
             save_state(state)
             logger.info(f"Initial ATR-based SL/TP set. SL: {state['position']['sl_price']:.4f}, TP: {state['position']['tp_price']:.4f}")
         
         # --- Enhanced Trailing Stop Loss Logic ---
         # The trailing stop is activated only after the price has moved favorably.
-        activation_price = entry_price + (current_atr * ATR_TRAILING_TP_ACTIVATION_MULTIPLIER)
+        activation_price = entry_price + (current_atr * config.ATR_TRAILING_TP_ACTIVATION_MULTIPLIER)
         
         # Check if trailing stop has been activated
         if state['position'].get('trailing_sl_activated') or current_price > activation_price:
@@ -264,7 +248,7 @@ def handle_in_position(exchange, state, current_price, candles):
                 logger.info(f"New highest price recorded for trailing stop: {highest_price:.4f}")
 
             # Calculate the new trailing stop loss
-            new_trailing_sl = highest_price - (current_atr * ATR_TRAILING_SL_MULTIPLIER)
+            new_trailing_sl = highest_price - (current_atr * config.ATR_TRAILING_SL_MULTIPLIER)
             
             # The new trailing stop should not be lower than the initial stop loss or the previous trailing stop
             current_trailing_sl = state['position'].get('trailing_sl_price', state['position']['sl_price'])
@@ -304,7 +288,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
     if state.get('pending_buy_confirmation'):
         # Check for timeout
         pending_time = datetime.fromisoformat(state['buy_signal_timestamp'])
-        if (datetime.now(timezone.utc) - pending_time).total_seconds() > PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS:
+        if (datetime.now(timezone.utc) - pending_time).total_seconds() > config.PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS:
             logger.info("Pending buy confirmation timed out. Cancelling.")
             state['pending_buy_confirmation'] = False
             state['buy_signal_timestamp'] = None
@@ -340,11 +324,11 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
                 logger.warning(reason)
                 return "Waiting (no position)", reason, analysis_details
 
-            potential_tp_price = current_price + (current_atr * ATR_TP_MULTIPLIER)
-            break_even_price = current_price * (1 + 2 * fee_rate + SLIPPAGE_PERCENTAGE)
+            potential_tp_price = current_price + (current_atr * config.ATR_TP_MULTIPLIER)
+            break_even_price = current_price * (1 + 2 * fee_rate + config.SLIPPAGE_PERCENTAGE)
 
             if potential_tp_price <= break_even_price:
-                reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%, Slippage: {SLIPPAGE_PERCENTAGE*100:.3f}%)."
+                reason = f"Skipping buy: Potential TP ${potential_tp_price:.4f} does not exceed break-even price ${break_even_price:.4f} (Fee: {fee_rate*100:.3f}%, Slippage: {config.SLIPPAGE_PERCENTAGE*100:.3f}%)."
                 logger.info(reason)
                 state['pending_buy_confirmation'] = False # Reset state
                 save_state(state)
@@ -352,15 +336,15 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
 
             logger.info(f"Profitability check passed: Potential TP ${potential_tp_price:.4f} > Break-even ${break_even_price:.4f}")
 
-            quote_currency = SYMBOL.split('/')[1]
+            quote_currency = config.SYMBOL.split('/')[1]
             amount_usdt = balance.get(quote_currency, 0)
             
-            if amount_usdt < MIN_TRADE_USDT:
+            if amount_usdt < config.MIN_TRADE_USDT:
                 reason = f"Insufficient balance ({amount_usdt:.2f} {quote_currency})."
                 logger.info(reason)
                 return "Waiting (no position)", reason, analysis_details
 
-            buy_order = create_market_buy_order(exchange, SYMBOL, amount_usdt)
+            buy_order = create_market_buy_order(exchange, config.SYMBOL, amount_usdt)
             if buy_order:
                 new_state = load_state()
                 new_state['has_position'] = True
@@ -377,7 +361,7 @@ def handle_no_position(exchange, state, balance, current_price, candles_primary,
                 new_state['pending_buy_confirmation'] = False
                 new_state['buy_signal_timestamp'] = None
                 save_state(new_state)
-                msg = f"🟢 <b>BUY CONFIRMED</b>\nSymbol: <code>{SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {analysis_details}"
+                msg = f"🟢 <b>BUY CONFIRMED</b>\nSymbol: <code>{config.SYMBOL}</code>\nPrice: <code>${buy_order['price']:.4f}</code>\nReason: {analysis_details}"
                 send_telegram_message(msg)
                 logger.info(msg)
                 return "Buy", "Buy signal confirmed and executed.", analysis_details
@@ -416,7 +400,7 @@ async def run_bot_tick():
         state = load_state()
 
         # Fetch trading fee and update strategy params
-        fee_rate = get_trading_fees(exchange, SYMBOL)
+        fee_rate = get_trading_fees(exchange, config.SYMBOL)
         strategy_params["trading_fee"] = fee_rate
 
         balance = get_account_balance(exchange)
@@ -424,7 +408,7 @@ async def run_bot_tick():
             logger.error(f"get_account_balance returned non-dict: {type(balance)}. Setting to empty dict.")
             balance = {}
         
-        base_currency = SYMBOL.split('/')[0]
+        base_currency = config.SYMBOL.split('/')[0]
         base_currency_balance = balance.get(base_currency, 0)
         min_position_amount = 1
 
@@ -437,13 +421,13 @@ async def run_bot_tick():
                 state = load_state()
         elif base_currency_balance >= min_position_amount:
             logger.warning("No local state, but found position on exchange. Syncing...")
-            sync_position_with_exchange(exchange, SYMBOL)
+            sync_position_with_exchange(exchange, config.SYMBOL)
             state = load_state()
 
-        current_price = get_current_price(exchange, SYMBOL)
+        current_price = get_current_price(exchange, config.SYMBOL)
         # Primary timeframe is now 15m, so we only need it and the trend timeframe
-        candles_primary = fetch_candles(exchange, SYMBOL, TIMEFRAME, limit=200) 
-        candles_trend = fetch_candles(exchange, SYMBOL, TREND_TIMEFRAME, limit=100)
+        candles_primary = fetch_candles(exchange, config.SYMBOL, config.TIMEFRAME, limit=200) 
+        candles_trend = fetch_candles(exchange, config.SYMBOL, config.TREND_TIMEFRAME, limit=100)
 
         required_lengths = {
             "price": current_price is not None,
@@ -490,7 +474,7 @@ async def main_loop():
     await initialize_bot()
     while True:
         await run_bot_tick()
-        await asyncio.sleep(POLL_SECONDS)
+        await asyncio.sleep(config.POLL_SECONDS)
 
 if __name__ == "__main__":
     try:
