@@ -26,42 +26,32 @@ import atexit # For graceful shutdown
 load_dotenv()
 logger = get_logger(__name__)
 
-# Constants from .env
-SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
-TIMEFRAME = os.getenv('TIMEFRAME', '15m') # Strategy based on 15m timeframe
-TREND_TIMEFRAME = os.getenv('TREND_TIMEFRAME', '1h') # Higher timeframe for trend confirmation
-# ATR-based SL/TP parameters
-ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
-ATR_SL_MULTIPLIER = float(os.getenv('ATR_SL_MULTIPLIER', 1.5))
-ATR_TP_MULTIPLIER = float(os.getenv('ATR_TP_MULTIPLIER', 3.0))
-ATR_TRAILING_TP_ACTIVATION_MULTIPLIER = float(os.getenv('ATR_TRAILING_TP_ACTIVATION_MULTIPLIER', 2.0))
-ATR_TRAILING_SL_MULTIPLIER = float(os.getenv('ATR_TRAILING_SL_MULTIPLIER', 1.0))
-SLIPPAGE_PERCENTAGE = float(os.getenv('SLIPPAGE_PERCENTAGE', 0.001)) # New: Estimated slippage percentage (e.g., 0.001 for 0.1%)
+# --- Bot & Strategy Parameters (Hardcoded) ---
+SYMBOL = 'XLM/USDT'
+TIMEFRAME = '15m'
+TREND_TIMEFRAME = '1h'
 
-POLL_SECONDS = int(os.getenv('POLL_SECONDS', 10))
-DRY_RUN = os.getenv('DRY_RUN', 'True').lower() == 'true'
-MIN_TRADE_USDT = float(os.getenv('MIN_TRADE_USDT', 10.0)) # New: Minimum trade amount in quote currency
-SIGNAL_EXPIRATION_MINUTES = int(os.getenv('SIGNAL_EXPIRATION_MINUTES', 5)) # How long a signal remains valid
-PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS = int(os.getenv('PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS', 120)) # Timeout for pending buy
+# ATR-based SL/TP parameters
+ATR_PERIOD = 14
+ATR_SL_MULTIPLIER = 1.5
+ATR_TP_MULTIPLIER = 3.0
+ATR_TRAILING_TP_ACTIVATION_MULTIPLIer = 2.0
+ATR_TRAILING_SL_MULTIPLIER = 1.0
+SLIPPAGE_PERCENTAGE = 0.001 # Estimated slippage percentage (0.1%)
+
+# General bot settings
+POLL_SECONDS = 10
+DRY_RUN = False # Set to True for testing without real orders
+MIN_TRADE_USDT = 10.0 # Minimum trade amount in quote currency
+PENDING_BUY_CONFIRMATION_TIMEOUT_SECONDS = 120 # Timeout for pending buy
 
 async def initialize_bot():
     """
     Initializes strategy parameters and waits for WebSocket data.
     """
-    # Simplified for the 15m strategy
-    strategy_params["timeframe"] = TIMEFRAME
-    strategy_params["trend_timeframe"] = TREND_TIMEFRAME
-    strategy_params["sma_period"] = signals.TREND_SMA_PERIOD
-    strategy_params["rsi_period"] = signals.RSI_PERIOD
-    strategy_params["rsi_buy_level"] = signals.RSI_BUY_LEVEL
-    strategy_params["atr_period"] = ATR_PERIOD
-    strategy_params["atr_sl_multiplier"] = ATR_SL_MULTIPLIER
-    strategy_params["atr_tp_multiplier"] = ATR_TP_MULTIPLIER
-    strategy_params["atr_trailing_tp_activation_multiplier"] = ATR_TRAILING_TP_ACTIVATION_MULTIPLIER
-    strategy_params["atr_trailing_sl_multiplier"] = ATR_TRAILING_SL_MULTIPLIER
-    strategy_params["min_trade_usdt"] = MIN_TRADE_USDT
-    strategy_params["trading_fee"] = 0.0 # Will be updated dynamically
-    logger.info(f"Strategy parameters initialized for 15m SMA strategy: {strategy_params}")
+    # Parameters are now hardcoded, this function mainly initializes the connection
+    logger.info(f"Initializing bot for {SYMBOL} on {TIMEFRAME} timeframe.")
+    logger.info(f"Strategy Parameters: SMA={signals.TREND_SMA_PERIOD}, RSI_Period={signals.RSI_PERIOD}, RSI_Buy_Level={signals.RSI_BUY_LEVEL}")
     
     # First, populate cache with historical data
     exchange = get_exchange()

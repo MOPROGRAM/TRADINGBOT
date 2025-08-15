@@ -5,13 +5,13 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-# --- Parameters for the 15m SMA Strategy ---
-TREND_SMA_PERIOD = int(os.getenv('TREND_SMA_PERIOD', 50))
-RSI_PERIOD = int(os.getenv('RSI_PERIOD', 14))
-RSI_BUY_LEVEL = int(os.getenv('RSI_BUY_LEVEL', 40)) # Buy when RSI crosses above this level from a local bottom
+# --- Parameters for the 15m SMA Strategy (Hardcoded) ---
+TREND_SMA_PERIOD = 50
+RSI_PERIOD = 14
+RSI_BUY_LEVEL = 40 # Buy when RSI crosses above this level from a local bottom
 
-# --- ATR Parameters (kept for Trailing Stop) ---
-ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
+# --- ATR Parameters (Hardcoded) ---
+ATR_PERIOD = 14
 
 def is_valid_candle(c):
     """Checks if a candle has the correct format and numeric values."""
