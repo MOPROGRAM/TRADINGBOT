@@ -17,7 +17,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 from exchange import get_exchange, websocket_client
 from state import load_state, load_trade_history
 from logger import get_logger, LIVE_LOG_FILE
-from bot import main_loop, POLL_SECONDS
+from bot import main_loop
+import config # Import the new config file
 from shared_state import strategy_params
 
 logger = get_logger(__name__)
@@ -53,12 +54,12 @@ app.mount("/static", StaticFiles(directory="web/static"), name="static")
 # Setup templates
 templates = Jinja2Templates(directory="web/templates")
 
-# Load symbol from environment
-SYMBOL = os.getenv('SYMBOL', 'XLM/USDT')
+# Load symbol from config
+SYMBOL = config.SYMBOL
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "symbol": SYMBOL})
+    return templates.TemplateResponse("index.html", {"request": request, "symbol": config.SYMBOL})
 
 @app.get("/api/logs")
 def get_live_logs():
@@ -148,7 +149,7 @@ def get_status():
             # This part for total balance calculation can be simplified if the bot provides it
             # For now, keeping the logic but it might be removed if bot handles it.
             usdt_val = balance.get('USDT', 0)
-            base_val = balance.get(SYMBOL.split('/')[0], 0)
+            base_val = balance.get(config.SYMBOL.split('/')[0], 0)
             if current_price:
                 total_balance_usdt = usdt_val + (base_val * current_price)
             else:
@@ -157,7 +158,7 @@ def get_status():
         filtered_balance = {k: v for k, v in balance.items() if v > 0.00000001}
 
         fresh_data = {
-            "symbol": SYMBOL,
+            "symbol": config.SYMBOL,
             "current_price": current_price,
             "balance": filtered_balance,
             "total_balance_usdt": total_balance_usdt,
@@ -181,7 +182,7 @@ def get_status():
     except Exception as e:
         logger.error(f"API Error: {e}", exc_info=True)
         return {
-            "symbol": SYMBOL, "current_price": None, "balance": {}, 
+            "symbol": config.SYMBOL, "current_price": None, "balance": {}, 
             "position": {}, "has_position": False, "pnl": 0, 
             "trade_history": [], "total_pnl": 0, "error": str(e),
             "signal": "API Error", "signal_reason": "Failed to assemble data", 
