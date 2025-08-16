@@ -10,7 +10,7 @@ from utils.telegram_notifier import send_telegram_message
 from strategies.ai_strategy import AIStrategy
 from shared_state import bot_state
 from websocket_manager import binance_websocket_client
-from ai_bot_dashboard.main import app as fastapi_app
+from ai_bot_dashboard.dashboard import app as fastapi_app
 import os
 
 SYMBOL = 'XLM/USDT'
