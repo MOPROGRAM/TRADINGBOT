@@ -7,7 +7,7 @@ from shared_state import bot_state
 from datetime import datetime
 
 SYMBOL = 'XLM/USDT'
-STREAM_NAME = f"{SYMBOL.lower()}@ticker"
+STREAM_NAME = f"{SYMBOL.replace('/', '').lower()}@ticker"
 
 async def binance_websocket_client():
     """
