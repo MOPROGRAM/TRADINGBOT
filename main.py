@@ -4,16 +4,20 @@ import asyncio
 import time
 import pandas as pd
 from datetime import datetime, timedelta
+import uvicorn
 from utils.binance_client import get_binance_client, fetch_historical_data, create_order
 from utils.telegram_notifier import send_telegram_message
 from strategies.ai_strategy import AIStrategy
 from shared_state import bot_state
+from websocket_manager import binance_websocket_client
+from ai_bot_dashboard.main import app as fastapi_app
+import os
 
 SYMBOL = 'XLM/USDT'
 TIMEFRAME = '15m'
 ORDER_AMOUNT = 100  # Example: 100 XLM
 
-async def main_loop():
+async def bot_logic_task():
     """
     The main operational loop for the trading bot.
     """
@@ -131,12 +135,36 @@ async def main_loop():
         
         await asyncio.sleep(60 * 15) # Wait for the next 15-minute candle
 
-def run():
+async def main():
     """
-    Main function to start the AI Trading Bot.
+    Main entry point to run all services concurrently.
     """
-    print("AI Trading Bot starting...")
-    asyncio.run(main_loop())
+    # Configure Uvicorn to run in the background
+    config = uvicorn.Config(
+        app=fastapi_app, 
+        host="0.0.0.0", 
+        port=int(os.environ.get("PORT", 10000)),
+        log_level="info"
+    )
+    server = uvicorn.Server(config)
+
+    # Start the WebSocket client as a background task
+    websocket_task = asyncio.create_task(binance_websocket_client())
+    
+    # Start the bot logic as a background task
+    bot_task = asyncio.create_task(bot_logic_task())
+
+    # Start the Uvicorn server
+    await server.serve()
+
+    # This part will be reached if the server is stopped
+    await websocket_task
+    await bot_task
+
 
 if __name__ == "__main__":
-    run()
+    print("--- Starting All Services ---")
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("--- Shutting down services ---")
