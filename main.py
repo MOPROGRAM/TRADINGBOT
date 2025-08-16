@@ -17,7 +17,7 @@ SYMBOL = 'XLM/USDT'
 TIMEFRAME = '15m'
 ORDER_AMOUNT = 100  # Example: 100 XLM
 
-async def bot_logic_task():
+async def main_loop():
     """
     The main operational loop for the trading bot.
     """
@@ -135,36 +135,7 @@ async def bot_logic_task():
         
         await asyncio.sleep(60 * 15) # Wait for the next 15-minute candle
 
-async def main():
-    """
-    Main entry point to run all services concurrently.
-    """
-    # Configure Uvicorn to run in the background
-    config = uvicorn.Config(
-        app=fastapi_app, 
-        host="0.0.0.0", 
-        port=int(os.environ.get("PORT", 10000)),
-        log_level="info"
-    )
-    server = uvicorn.Server(config)
-
-    # Start the WebSocket client as a background task
-    websocket_task = asyncio.create_task(binance_websocket_client())
-    
-    # Start the bot logic as a background task
-    bot_task = asyncio.create_task(bot_logic_task())
-
-    # Start the Uvicorn server
-    await server.serve()
-
-    # This part will be reached if the server is stopped
-    await websocket_task
-    await bot_task
-
-
 if __name__ == "__main__":
-    print("--- Starting All Services ---")
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("--- Shutting down services ---")
+    # This file is not meant to be run directly anymore.
+    # The bot logic is started by ai_bot_dashboard/main.py
+    print("This script is not intended to be run directly. Run ai_bot_dashboard/main.py instead.")

@@ -2,6 +2,8 @@
 
 import os
 import sys
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,8 +14,21 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from shared_state import bot_state
+from main import main_loop as bot_logic_task
+from websocket_manager import binance_websocket_client
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start background tasks
+    print("--- Starting background tasks (Bot and WebSocket) ---")
+    bot_task = asyncio.create_task(bot_logic_task())
+    websocket_task = asyncio.create_task(binance_websocket_client())
+    yield
+    # Clean up the tasks (optional, as Render will kill the process anyway)
+    bot_task.cancel()
+    websocket_task.cancel()
+
+app = FastAPI(lifespan=lifespan)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="ai_bot_dashboard/static"), name="static")
