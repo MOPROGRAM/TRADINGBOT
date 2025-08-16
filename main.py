@@ -13,7 +13,7 @@ import os
 
 SYMBOL = 'XLM/USDT'
 TIMEFRAME = '15m'
-ORDER_AMOUNT = 100  # Example: 100 XLM
+ORDER_AMOUNT = 200  # Example: 200 XLM
 
 async def main_loop():
     """
