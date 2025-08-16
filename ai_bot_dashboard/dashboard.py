@@ -56,7 +56,3 @@ def get_status():
     state['analysis_details'] = state.get('analysis_details', 'AI Model Prediction')
     state['connection_status'] = {"websocket": "connected"} # Assume connected if dashboard is up
     return JSONResponse(content=state)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)

@@ -4,13 +4,11 @@ import asyncio
 import time
 import pandas as pd
 from datetime import datetime, timedelta
-import uvicorn
 from utils.binance_client import get_binance_client, fetch_historical_data, create_order
 from utils.telegram_notifier import send_telegram_message
 from strategies.ai_strategy import AIStrategy
 from shared_state import bot_state
 from websocket_manager import binance_websocket_client
-from ai_bot_dashboard.dashboard import app as fastapi_app
 import os
 
 SYMBOL = 'XLM/USDT'
@@ -134,8 +132,3 @@ async def main_loop():
             send_telegram_message(f"⚠️ ERROR: An error occurred in the bot: {e}")
         
         await asyncio.sleep(60 * 15) # Wait for the next 15-minute candle
-
-if __name__ == "__main__":
-    # This file is not meant to be run directly anymore.
-    # The bot logic is started by ai_bot_dashboard/main.py
-    print("This script is not intended to be run directly. Run ai_bot_dashboard/main.py instead.")
