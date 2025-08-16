@@ -6,8 +6,10 @@ uvicorn
 jinja2
 python-multipart
 gunicorn
+pandas
 pandas-ta
 scikit-learn
 joblib
 websockets
 scipy
+xgboost

@@ -21,3 +21,6 @@ live_candles.json
 # Web status and trade history
 web_status.json
 trade_history.json
+
+# Trained models
+models/

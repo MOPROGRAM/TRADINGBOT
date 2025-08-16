@@ -1,16 +1,18 @@
 services:
-  # Service 1: The Web Interface (FastAPI)
-  # Triggering a new deployment
-  - type: web
-    name: trading-bot-web
+  # Service 1: The AI Trading Bot (Worker)
+  - type: worker
+    name: ai-trading-bot
     env: python
     buildCommand: "pip install -r requirements.txt"
-    # Use uvicorn directly, which is simpler and more standard for FastAPI.
-    # It correctly binds to the PORT provided by Render.
-    startCommand: "uvicorn web.main:app --host 0.0.0.0 --port $PORT"
+    startCommand: "py train_model.py && py main.py"
     envVars:
-      - fromGroup: trading-bot-env
-# It is recommended to manage secrets directly in the Render dashboard
-# rather than defining them in the render.yaml file.
-# This envVarGroups section is removed to encourage best practices.
-# The user should create an environment group named 'trading-bot-env' in Render.
+      - fromGroup: ai-trading-bot-env
+
+  # Service 2: The Web Dashboard (Web Service)
+  - type: web
+    name: ai-trading-dashboard
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn ai_bot_dashboard.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - fromGroup: ai-trading-bot-env

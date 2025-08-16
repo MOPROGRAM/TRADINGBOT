@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-gray-900 text-gray-200 font-sans" x-data="botDashboard()" x-init="init()">
+    <div class="container mx-auto p-4 lg:p-6">
+        <!-- Header -->
+        <header class="mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-white" x-text="symbol"></h1>
+            <p class="text-gray-400">Real-time trading bot dashboard</p>
+            <p class="text-2xl md:text-3xl font-mono text-white mt-2" x-text="currentPrice"></p>
+            <!-- Connections Bar -->
+            <div class="ws-status-bar mt-3 flex-wrap">
+                <div class="flex items-center gap-x-4 gap-y-2 flex-wrap">
+                    <template x-for="(status, stream) in connectionStatus" :key="stream">
+                        <div class="flex items-center gap-2" :title="status">
+                            <div class="ws-status-dot" :class="{
+                                'bg-green-500': status === 'connected',
+                                'bg-yellow-500': status === 'connecting',
+                                'bg-red-500': status === 'disconnected',
+                                'bg-gray-500': status === 'stopped'
+                            }"></div>
+                            <span class="text-sm font-semibold" :class="status === 'connected' ? 'text-green-400' : 'text-gray-300'" x-text="stream"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="flex flex-col gap-6">
+            <!-- Chart -->
+            <main class="w-full flex flex-col chart-container">
+                <div class="card flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <div id="tradingview_chart" class="flex-1 w-full h-full"></div>
+                </div>
+            </main>
+
+            <!-- Info Row -->
+            <aside class="w-full flex flex-col lg:flex-row gap-6">
+                <!-- Open Position -->
+                <div class="card lg:w-1/3" x-show="hasPosition" x-transition>
+                    <h2 class="text-xl font-semibold mb-3">Open Position</h2>
+                    <div class="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                            <span class="text-xs text-gray-400">Entry Price</span>
+                            <p class="font-mono text-base" x-text="position.entry_price"></p>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-400">Size</span>
+                            <p class="font-mono text-base" x-text="position.size"></p>
+                        </div>
+                        <div>
+                            <span class="text-xs text-gray-400">PnL</span>
+                            <p class="font-mono text-base" x-text="pnl" :class="parseFloat(pnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Signal & Analysis -->
+                <div class="card flex-1 flex flex-col lg:w-2/3">
+                    <h2 class="text-xl font-semibold mb-3">Live Signal & Analysis</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-1 bg-gray-900/50 p-4 rounded-lg flex items-center justify-center">
+                            <div class="flex items-center space-x-3 text-center">
+                                <span class="text-3xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
+                                <div>
+                                    <p class="font-bold text-lg" x-text="signal"></p>
+                                    <p class="text-sm text-gray-400" x-text="signalReason"></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="md:col-span-2 space-y-2 flex-1 flex flex-col justify-center">
+                            <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
+                                <div class="signal-box" :class="{
+                                    'border-green-500/30': detail.includes('✅'),
+                                    'border-red-500/30': detail.includes('❌')
+                                }">
+                                    <p x-text="detail" class="text-sm" :class="{
+                                        'text-green-300': detail.includes('✅'),
+                                        'text-red-300': detail.includes('❌')
+                                    }"></p>
+                                </div>
+                            </template>
+                            <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Trade History (Full Width) -->
+        <div class="mt-6">
+            <div class="card">
+                <!-- Account Balance Bar -->
+                <div class="bg-gray-800/50 p-3 rounded-lg mb-4">
+                    <h3 class="text-lg font-semibold mb-2 text-gray-300">Account Balance</h3>
+                    <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm" x-show="Object.keys(balance).length > 0">
+                        <template x-for="asset in Object.keys(balance)" :key="asset">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-gray-400" x-text="asset + ':'"></span>
+                                <span class="font-mono text-white" x-text="balance[asset] ? parseFloat(balance[asset]).toFixed(4) : 'N/A'"></span>
+                            </div>
+                        </template>
+                    </div>
+                    <p x-show="Object.keys(balance).length === 0" class="text-sm text-gray-500">Loading balance...</p>
+                </div>
+
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Trade History</h2>
+                    <div class="text-right">
+                        <span class="text-sm text-gray-400">Total PnL</span>
+                        <p x-text="totalPnl" class="font-bold text-lg" :class="parseFloat(totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'"></p>
+                    </div>
+                </div>
+                <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    <template x-for="trade in tradeHistory" :key="trade.timestamp">
+                        <div class="trade-card" :class="trade.pnl_percent >= 0 ? 'border-green-500/20' : 'border-red-500/20'">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-bold text-base" :class="trade.pnl_percent >= 0 ? 'text-green-400' : 'text-red-400'">
+                                        <span x-text="trade.side"></span>
+                                        <span x-text="trade.pnl_percent ? trade.pnl_percent.toFixed(2) + '%' : 'N/A'"></span>
+                                    </p>
+                                    <p class="text-xs text-gray-400" x-text="trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'N/A'"></p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-mono text-sm" x-text="`PnL: ${trade.pnl ? trade.pnl.toFixed(4) : 'N/A'}`"></p>
+                                    <p class="text-xs text-gray-500" x-text="trade.reason || 'N/A'"></p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-700/50 text-xs">
+                                <div>
+                                    <span class="text-gray-400">Size</span>
+                                    <p class="font-mono" x-text="trade.size ? parseFloat(trade.size).toFixed(6) : 'N/A'"></p>
+                                </div>
+                                <div>
+                                    <span class="text-gray-400">Entry</span>
+                                    <p class="font-mono" x-text="trade.entry_price ? parseFloat(trade.entry_price).toFixed(4) : 'N/A'"></p>
+                                </div>
+                                <div>
+                                    <span class="text-gray-400">Exit</span>
+                                    <p class="font-mono" x-text="trade.exit_price ? parseFloat(trade.exit_price).toFixed(4) : 'N/A'"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="tradeHistory.length === 0" class="text-center py-12 text-gray-500">
+                        <p>No trades yet.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+        function botDashboard() {
+            return {
+                symbol: '{{ symbol }}',
+                currentPrice: 'Loading...',
+                hasPosition: false,
+                position: {},
+                pnl: '0.00%',
+                statusIcon: '🟡',
+                statusText: 'Initializing...',
+                balance: {},
+                tradeHistory: [],
+                totalPnl: '0.00%',
+                signal: 'Initializing...',
+                signalReason: 'Waiting for data...',
+                analysisDetails: 'Waiting for data...',
+                connectionStatus: {},
+                strategyParams: {},
+                init() {
+                    this.loadDashboardData();
+                    this.loadTradingViewChart();
+                    setInterval(() => this.loadDashboardData(), 2000); // Refresh every 2 seconds
+                },
+
+                async loadDashboardData() {
+                    try {
+                        const response = await fetch('/api/status');
+                        if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                        const data = await response.json();
+                        this.updateDashboard(data);
+                    } catch (error) {
+                        console.error('Error fetching dashboard data:', error);
+                        this.statusIcon = '🔴';
+                        this.statusText = 'API Error';
+                        this.connectionStatus = { ticker: 'disconnected', '5m': 'disconnected', '15m': 'disconnected', '1h': 'disconnected' };
+                    }
+                },
+
+                updateDashboard(data) {
+                    if (data.error) {
+                        console.error('Error from API data:', data.error);
+                        this.statusIcon = '🔴';
+                        this.statusText = 'API Error';
+                        return;
+                    }
+
+                    this.currentPrice = data.current_price ? '$' + parseFloat(data.current_price).toFixed(4) : 'N/A';
+                    this.hasPosition = data.has_position;
+                    this.balance = data.balance || {};
+                    this.tradeHistory = (data.trade_history || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    this.totalPnl = data.total_pnl ? data.total_pnl.toFixed(2) + '%' : '0.00%';
+                    this.signal = data.signal || 'Waiting...';
+                    this.signalReason = data.signal_reason || 'N/A';
+                    this.analysisDetails = data.analysis_details || 'N/A';
+                    this.connectionStatus = data.connection_status || {};
+                    this.strategyParams = data.strategy_params || {};
+
+                    if (this.hasPosition) {
+                        this.position = {
+                            entry_price: data.position.entry_price ? parseFloat(data.position.entry_price).toFixed(4) : 'N/A',
+                            size: data.position.size ? parseFloat(data.position.size).toFixed(6) : 'N/A',
+                            timestamp: data.position.timestamp ? new Date(data.position.timestamp).toLocaleString() : 'N/A',
+                        };
+                        this.pnl = data.pnl ? data.pnl.toFixed(2) + '%' : '0.00%';
+                        this.statusIcon = '🟢';
+                        this.statusText = 'Position Open';
+                    } else {
+                        this.position = {};
+                        this.pnl = '0.00%';
+                        this.statusIcon = '🟡';
+                        this.statusText = 'Waiting for Signal';
+                    }
+                },
+
+                loadTradingViewChart() {
+                    const chartContainer = document.getElementById('tradingview_chart');
+                    if (!chartContainer) return;
+
+                    const widgetOptions = {
+                        "autosize": true,
+                        "symbol": `BINANCE:{{ symbol.replace('/', '') }}`,
+                        "interval": "5",
+                        "timezone": "Etc/UTC",
+                        "theme": "dark",
+                        "style": "1",
+                        "locale": "en",
+                        "enable_publishing": false,
+                        "hide_side_toolbar": false,
+                        "allow_symbol_change": true,
+                        "container_id": "tradingview_chart"
+                    };
+
+                    new TradingView.widget(widgetOptions);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

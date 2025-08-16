@@ -63,9 +63,9 @@ EXIT_EMA_PERIOD_LONG = int(os.getenv('EXIT_EMA_PERIOD_LONG', 21))
 TREND_EMA_PERIOD = int(os.getenv('TREND_EMA_PERIOD', 50))
 EXIT_RSI_LEVEL = int(os.getenv('EXIT_RSI_LEVEL', 65))
 BUY_RSI_LEVEL = int(os.getenv('BUY_RSI_LEVEL', 55))
-BUY_RSI_UPPER_LEVEL = int(os.getenv('BUY_RSI_UPPER_LEVEL', 70)) # New RSI upper level for buy signal
+BUY_RSI_UPPER_LEVEL = int(os.getenv('BUY_RSI_UPPER_LEVEL', 65)) # New RSI upper level for buy signal
 REVERSAL_DROP_PERCENTAGE = float(os.getenv('REVERSAL_DROP_PERCENTAGE', 0.01)) # 1.0% drop for reversal confirmation (increased from 0.5%)
-VOLUME_CONFIRMATION_MULTIPLIER = float(os.getenv('VOLUME_CONFIRMATION_MULTIPLIER', 1.5)) # Volume must be X times average for confirmation
+VOLUME_CONFIRMATION_MULTIPLIER = float(os.getenv('VOLUME_CONFIRMATION_MULTIPLIER', 1.1)) # Volume must be X times average for confirmation
 
 # ATR-based SL/TP parameters
 ATR_PERIOD = int(os.getenv('ATR_PERIOD', 14))
@@ -114,7 +114,7 @@ def is_valid_candle(c):
     return isinstance(c, list) and len(c) == 7 and \
            all(isinstance(val, (int, float)) and val is not None for val in c[1:6])
 
-def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_strength=25):
+def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_strength=20):
     """
     Checks for buy signal using Multi-Timeframe Analysis with dynamic thresholds.
     """
@@ -179,33 +179,13 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
         logger.warning(reason)
         return False, reason
 
-        # --- Dynamic Threshold Adjustment based on Volatility ---
-    current_atr = calculate_atr(candles_primary)
     last_close_primary = df_primary['close'].iloc[-1]
     
-    # Default static thresholds
+    # --- Using Fixed Thresholds as per user request ---
     buy_rsi_level_dynamic = BUY_RSI_LEVEL
     adx_trend_strength_dynamic = adx_trend_strength
     volume_multiplier_dynamic = VOLUME_CONFIRMATION_MULTIPLIER
-
-    if current_atr and last_close_primary > 0:
-        volatility_ratio = (current_atr / last_close_primary) * 100
-        
-        HIGH_VOLATILITY_THRESHOLD = 1.5
-        LOW_VOLATILITY_THRESHOLD = 0.7
-        
-        if volatility_ratio > HIGH_VOLATILITY_THRESHOLD:
-            buy_rsi_level_dynamic = BUY_RSI_LEVEL - 5
-            adx_trend_strength_dynamic = adx_trend_strength + 5
-            volume_multiplier_dynamic = VOLUME_CONFIRMATION_MULTIPLIER + 0.5
-            logger.info(f"High volatility detected (ATR: {volatility_ratio:.2f}%). Stricter thresholds: ADX > {adx_trend_strength_dynamic}, Vol > {volume_multiplier_dynamic}x")
-        elif volatility_ratio < LOW_VOLATILITY_THRESHOLD:
-            buy_rsi_level_dynamic = BUY_RSI_LEVEL
-            adx_trend_strength_dynamic = adx_trend_strength - 5
-            volume_multiplier_dynamic = VOLUME_CONFIRMATION_MULTIPLIER - 0.4
-            logger.info(f"Low volatility detected (ATR: {volatility_ratio:.2f}%). Relaxed thresholds: ADX > {adx_trend_strength_dynamic}, Vol > {volume_multiplier_dynamic}x")
-        else:
-            logger.info(f"Normal volatility detected (ATR: {volatility_ratio:.2f}%). Using default thresholds.")
+    logger.info(f"Using fixed buy thresholds: ADX > {adx_trend_strength_dynamic}, Vol > {volume_multiplier_dynamic}x")
 
     # Calculate Indicators for Primary Timeframe on closed candles
     df_primary_closed['rsi'] = rsi(df_primary_closed['close'], length=14)
@@ -243,6 +223,13 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     last_ema_trend_1h = df_trend_closed['ema_trend'].iloc[-1]
 
     # --- Condition Checks ---
+    # New Pullback Check: Ensure the price is near the short-term EMA for a better entry
+    cond_pullback = last_close_primary <= (last_ema_short_primary * 1.005) # Price is within 0.5% of short EMA
+    if cond_pullback:
+        analysis_details.append(f"✅ Pullback confirmed: Price ({last_close_primary:.4f}) is near Short EMA ({last_ema_short_primary:.4f}).")
+    else:
+        analysis_details.append(f"❌ No Pullback: Price ({last_close_primary:.4f}) is too far from Short EMA ({last_ema_short_primary:.4f}).")
+
     # Safety Brake: Prevent buying if price is too far above the long-term trend EMA
     PRICE_DEVIATION_LIMIT = 0.025 # 2.5%
     cond0_price_not_overextended = last_close_primary < (last_ema_trend_1h * (1 + PRICE_DEVIATION_LIMIT))
@@ -302,10 +289,19 @@ def check_buy_signal(candles_primary, candles_15min, candles_trend, adx_trend_st
     else:
         analysis_details.append(f"❌ DMI Confirmation (DI+ {last_dmp:.2f} <= DI- {last_dmn:.2f}).")
 
-    # A buy signal is triggered only if all conditions are met (including the safety brake checked earlier).
-    buy_signal_triggered = cond1_rsi_in_range and cond2_ema_crossover and cond3_price_above_trend and cond4_adx_strong_trend and cond5_volume_confirmation and cond6_dmi_confirmation
+    # --- Final Signal Check ---
+    buy_signal = (
+        cond_pullback and # Added pullback condition
+        cond0_price_not_overextended and
+        cond1_rsi_in_range and
+        cond2_ema_crossover and
+        cond3_price_above_trend and
+        cond4_adx_strong_trend and
+        cond5_volume_confirmation and
+        cond6_dmi_confirmation
+    )
 
-    return buy_signal_triggered, " | ".join(analysis_details)
+    return buy_signal, " | ".join(analysis_details)
 
 def check_sell_signal(candles, adx_trend_strength=25):
     """
@@ -367,7 +363,7 @@ def check_sell_signal(candles, adx_trend_strength=25):
             required_conditions = 1 # Quick exit in high volatility
             logger.info(f"High volatility detected for sell. Required conditions: {required_conditions}")
         elif volatility_ratio < LOW_VOLATILITY_THRESHOLD:
-            required_conditions = 3 # Patient exit in low volatility
+            required_conditions = 2 # More lenient exit in low volatility
             logger.info(f"Low volatility detected for sell. Required conditions: {required_conditions}")
 
     # --- Bearish RSI Divergence Check ---
@@ -429,14 +425,15 @@ def check_sell_signal(candles, adx_trend_strength=25):
     else:
         analysis_details.append(f"❌ No significant price drop from recent high.")
 
-    # New: ADX Weakness Condition for Sell
-    cond5_adx_weakness = last_adx is not None and not pd.isna(last_adx) and last_adx < adx_trend_strength
+    # New: ADX Trend Condition for Sell (Modified)
+    # Sell if a bearish trend is established (ADX > 20) and DMI confirms it.
+    cond5_adx_strong_bearish = last_adx is not None and not pd.isna(last_adx) and last_adx > 20
     if last_adx is None or pd.isna(last_adx):
-        analysis_details.append(f"⚠️ ADX could not be calculated for weakness check.")
-    elif cond5_adx_weakness:
-        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates trend weakness (below {adx_trend_strength}).")
+        analysis_details.append(f"⚠️ ADX could not be calculated for trend check.")
+    elif cond5_adx_strong_bearish:
+        analysis_details.append(f"✅ ADX ({last_adx:.2f}) indicates a significant trend (>20).")
     else:
-        analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate trend weakness (above {adx_trend_strength}).")
+        analysis_details.append(f"❌ ADX ({last_adx:.2f}) does not indicate a strong trend (must be >20).")
 
     # --- Enhanced Sell Confirmation with OBV ---
     last_obv = df_closed['obv'].iloc[-1]
@@ -470,7 +467,7 @@ def check_sell_signal(candles, adx_trend_strength=25):
         analysis_details.append(f"❌ DMI Confirmation (DI- {last_dmn:.2f} <= DI+ {last_dmp:.2f}).")
 
     # A sell signal requires a dynamic number of primary conditions AND strong volume confirmation from OBV AND DMI confirmation.
-    primary_conditions_met = sum([cond1_bearish_divergence, cond2_ema_crossunder, cond3_reversal_drop, cond5_adx_weakness])
+    primary_conditions_met = sum([cond1_bearish_divergence, cond2_ema_crossunder, cond3_reversal_drop, cond5_adx_strong_bearish])
     volume_confirmation_met = cond_obv_trending_down and cond_high_volume_bearish_candle
     
     sell_signal_triggered = (primary_conditions_met >= required_conditions) and volume_confirmation_met and cond6_dmi_confirmation

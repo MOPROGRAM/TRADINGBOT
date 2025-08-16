@@ -24,7 +24,7 @@ def get_logger(name):
         logger.addHandler(ch)
         
         # File Handler for all logs
-        fh = logging.FileHandler('trading_bot.log')
+        fh = logging.FileHandler('trading_bot.log', encoding='utf-8')
         fh.setFormatter(formatter)
         logger.addHandler(fh)
 
@@ -34,7 +34,8 @@ def get_logger(name):
             rfh = RotatingFileHandler(
                 LIVE_LOG_FILE, 
                 maxBytes=LIVE_LOG_MAX_BYTES, 
-                backupCount=LIVE_LOG_BACKUP_COUNT
+                backupCount=LIVE_LOG_BACKUP_COUNT,
+                encoding='utf-8'
             )
             rfh.setFormatter(formatter)
             logger.addHandler(rfh)
