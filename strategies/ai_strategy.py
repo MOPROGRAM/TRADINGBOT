@@ -76,13 +76,14 @@ class AIStrategy:
             'EMA_20', 'EMA_50', 'RSI_14', 'MACD_12_26_9', 'BBL_20_2.0', 
             'BBM_20_2.0', 'BBU_20_2.0', 'ATRr_14', 'STOCHk_14_3_3', 'STOCHd_14_3_3', 'volume'
         ]
+        
+        # Ensure all feature columns are numeric before slicing
+        for col in features:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df.fillna(0, inplace=True) # Replace any remaining NaNs with 0
+
         X = df[features]
         y = df['target']
-        
-        # Ensure all feature columns are numeric before training
-        for col in X.columns:
-            X[col] = pd.to_numeric(X[col], errors='coerce')
-        X.fillna(0, inplace=True) # Replace any remaining NaNs with 0
         
         self.model.fit(X, y)
         
