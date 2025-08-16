@@ -85,6 +85,9 @@ class AIStrategy:
         X.fillna(0, inplace=True) # Replace any remaining NaNs with 0
         
         self.model.fit(X, y)
+        
+        # Ensure the 'models' directory exists before saving
+        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
         dump(self.model, self.model_path)
         print(f"Model trained and saved to {self.model_path}")
 
