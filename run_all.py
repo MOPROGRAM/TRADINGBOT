@@ -4,6 +4,7 @@ import threading
 import uvicorn
 from ai_bot_dashboard.main import app as fastapi_app
 from main import main_loop
+from websocket_manager import binance_websocket_client
 import asyncio
 import os
 
@@ -20,13 +21,24 @@ def run_bot():
     loop.run_until_complete(main_loop())
     loop.close()
 
+def run_websocket():
+    """Runs the websocket client."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(binance_websocket_client())
+    loop.close()
+
 if __name__ == "__main__":
     print("--- Starting Dashboard in a background thread ---")
     dashboard_thread = threading.Thread(target=run_dashboard, daemon=True)
     dashboard_thread.start()
     
+    print("--- Starting WebSocket Client in a background thread ---")
+    websocket_thread = threading.Thread(target=run_websocket, daemon=True)
+    websocket_thread.start()
+    
     print("--- Starting Trading Bot in the main thread ---")
-    # Give the dashboard a moment to start up
+    # Give the other threads a moment to start up
     import time
     time.sleep(5)
     run_bot()

@@ -1,14 +1,30 @@
-# This file holds shared configuration between the web server and the bot logic.
+# shared_state.py
 
-# Holds the parameters of the current strategy.
-# This dictionary is populated by the bot on startup.
-strategy_params = {
-    "timeframe": "N/A",
-    "buy_signal_period": "N/A",
-    "sell_signal_period": "N/A",
-    "sl_percent": "N/A",
-    "tp_percent": "N/A",
-    "trailing_tp_percent": "N/A",
-    "trailing_tp_activation_percent": "N/A",
-    "trailing_sl_percent": "N/A",
-}
+import threading
+
+# A thread-safe dictionary to hold the bot's live state.
+# This allows the bot, dashboard, and websocket client to communicate.
+class BotState:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._state = {
+            "current_price": None,
+            "balance": {},
+            "position": {},
+            "has_position": False,
+            "pnl": 0.0,
+            "signal": "Initializing...",
+            "signal_reason": "Waiting for bot...",
+            "last_update": None,
+        }
+
+    def get_state(self):
+        with self._lock:
+            return self._state.copy()
+
+    def update_state(self, key, value):
+        with self._lock:
+            self._state[key] = value
+
+# Global instance of the bot state
+bot_state = BotState()

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from utils.binance_client import get_binance_client, fetch_historical_data, create_order
 from utils.telegram_notifier import send_telegram_message
 from strategies.ai_strategy import AIStrategy
+from shared_state import bot_state
 
 SYMBOL = 'XLM/USDT'
 TIMEFRAME = '15m'
@@ -34,16 +35,32 @@ async def main_loop():
 
     while True:
         try:
-            # Fetch latest data for prediction and ATR
-            latest_data_df = pd.DataFrame(await fetch_historical_data(client, SYMBOL, TIMEFRAME, 100), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            strategy._calculate_features(latest_data_df) # Calculate all features including ATR
-            
-            if latest_data_df.empty:
-                await asyncio.sleep(60 * 15)
+            # --- Wait for the first price update from WebSocket ---
+            current_price = bot_state.get_state().get("current_price")
+            if not current_price:
+                print("Waiting for first price update from WebSocket...")
+                await asyncio.sleep(5)
                 continue
 
-            current_price = latest_data_df['close'].iloc[-1]
-            current_atr = latest_data_df['ATRr_14'].iloc[-1]
+            # Fetch historical data for decision making (less frequent)
+            historical_data_df = pd.DataFrame(await fetch_historical_data(client, SYMBOL, TIMEFRAME, 200), columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            strategy._calculate_features(historical_data_df)
+            
+            if historical_data_df.empty:
+                await asyncio.sleep(60 * 15)
+                continue
+            
+            current_atr = historical_data_df['ATRr_14'].iloc[-1]
+
+            # Update shared state with balance and position info (example)
+            # In a real bot, you'd fetch this periodically
+            balance_info = await client.fetch_balance()
+            bot_state.update_state("balance", {
+                "USDT": balance_info['USDT']['free'],
+                "XLM": balance_info['XLM']['free']
+            })
+            bot_state.update_state("has_position", has_position)
+            bot_state.update_state("position", {"entry_price": entry_price} if has_position else {})
 
             # --- Dynamic Trailing Stop-Loss Logic ---
             if has_position:
@@ -62,7 +79,7 @@ async def main_loop():
                     continue
 
             # --- Signal-based Trading Logic ---
-            prediction = strategy.predict(latest_data_df)
+            prediction = strategy.predict(historical_data_df)
             signal = prediction[-1] if len(prediction) > 0 else 0
             
             if signal == 1 and not has_position:
@@ -72,6 +89,8 @@ async def main_loop():
                 stop_loss_price = entry_price - (current_atr * atr_multiplier)
                 send_telegram_message(f"🚀 BUY SIGNAL: Placed market buy order for {ORDER_AMOUNT} {SYMBOL}.\nEntry Price: {entry_price:.4f}\nInitial Stop-Loss: {stop_loss_price:.4f}")
                 has_position = True
+                bot_state.update_state("signal", "Buy")
+                bot_state.update_state("signal_reason", f"AI Model Prediction: Buy at {current_price:.4f}")
             elif signal == -1 and has_position:
                 breakeven_price = entry_price * (1 + 2 * fee_rate)
                 if current_price > breakeven_price:
@@ -80,10 +99,16 @@ async def main_loop():
                     send_telegram_message(f"🛑 SELL SIGNAL: Placed market sell order for {ORDER_AMOUNT} {SYMBOL}.\nOrder details: {order}")
                     has_position = False
                     entry_price = 0
+                    bot_state.update_state("signal", "Sell")
+                    bot_state.update_state("signal_reason", f"AI Model Prediction: Sell at {current_price:.4f}")
                 else:
                     print(f"Hold signal: Current price {current_price:.4f} is below breakeven {breakeven_price:.4f}")
+                    bot_state.update_state("signal", "Hold")
+                    bot_state.update_state("signal_reason", f"Waiting for price > breakeven {breakeven_price:.4f}")
             else:
                 print("Hold signal received. No action taken.")
+                bot_state.update_state("signal", "Hold")
+                bot_state.update_state("signal_reason", "AI Model Prediction: Hold")
 
             # --- Periodic Retraining Logic ---
             if datetime.now() - last_training_time > timedelta(days=7):

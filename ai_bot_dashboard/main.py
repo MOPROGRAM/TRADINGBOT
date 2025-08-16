@@ -2,9 +2,8 @@
 
 import os
 import sys
-import json
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -12,7 +11,7 @@ from pathlib import Path
 # Add project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from state import load_trade_history
+from shared_state import bot_state
 
 app = FastAPI()
 
@@ -31,28 +30,17 @@ async def read_root(request: Request):
 
 @app.get("/api/status")
 def get_status():
-    # This is a placeholder. In a real application, this would fetch live data from the bot.
-    # For now, we'll return some mock data.
-    
-    mock_data = {
-        "symbol": SYMBOL,
-        "current_price": 0.11,
-        "balance": {"USDT": 1000, "XLM": 5000},
-        "total_balance_usdt": 1550.0,
-        "position": {},
-        "has_position": False,
-        "pnl": 0,
-        "trade_history": load_trade_history(), # You might want to create a separate history for the AI bot
-        "total_pnl": 0,
-        "signal": "Buy",
-        "signal_reason": "AI Model Prediction",
-        "analysis_details": "EMA crossover ✅ | RSI bullish ✅",
-        "strategy_params": {},
-        "live_candles": [],
-        "last_modified": "2025-08-16T10:30:00Z",
-        "connection_status": {"binance": "connected"}
-    }
-    return mock_data
+    """
+    Returns the live state of the bot from the shared state object.
+    """
+    state = bot_state.get_state()
+    state['symbol'] = SYMBOL
+    # Add other necessary UI fields if they are not in the bot_state
+    state['trade_history'] = state.get('trade_history', [])
+    state['total_pnl'] = state.get('total_pnl', 0.0)
+    state['analysis_details'] = state.get('analysis_details', 'AI Model Prediction')
+    state['connection_status'] = {"websocket": "connected"} # Assume connected if dashboard is up
+    return JSONResponse(content=state)
 
 if __name__ == "__main__":
     import uvicorn
