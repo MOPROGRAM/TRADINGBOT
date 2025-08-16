@@ -4,7 +4,7 @@ services:
     name: ai-trading-bot-suite
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python3 ai_bot_dashboard/main.py"
+    startCommand: "python3 ai_bot_dashboard/dashboard.py"
     envVars:
       - fromGroup: ai-trading-bot-env
     healthCheckPath: / # The dashboard's root URL can serve as a health check
