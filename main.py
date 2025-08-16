@@ -92,7 +92,7 @@ async def main_loop():
                 send_telegram_message(f"🚀 BUY SIGNAL: Placed market buy order for {ORDER_AMOUNT} {SYMBOL}.\nEntry Price: {entry_price:.4f}\nInitial Stop-Loss: {stop_loss_price:.4f}")
                 has_position = True
                 bot_state.update_state("signal", "Buy")
-                bot_state.update_state("signal_reason", f"AI Model Prediction: Buy at {current_price:.4f}")
+                bot_state.update_state("signal_reason", f"✅ AI model predicted BUY. | Entry: {entry_price:.4f}, SL: {stop_loss_price:.4f}")
             elif signal == -1 and has_position:
                 breakeven_price = entry_price * (1 + 2 * fee_rate)
                 if current_price > breakeven_price:
@@ -102,15 +102,15 @@ async def main_loop():
                     has_position = False
                     entry_price = 0
                     bot_state.update_state("signal", "Sell")
-                    bot_state.update_state("signal_reason", f"AI Model Prediction: Sell at {current_price:.4f}")
+                    bot_state.update_state("signal_reason", f"✅ AI model predicted SELL. | Price > Breakeven.")
                 else:
                     print(f"Hold signal: Current price {current_price:.4f} is below breakeven {breakeven_price:.4f}")
                     bot_state.update_state("signal", "Hold")
-                    bot_state.update_state("signal_reason", f"Waiting for price > breakeven {breakeven_price:.4f}")
+                    bot_state.update_state("signal_reason", f"❌ AI model predicted SELL, but price is below breakeven. | Price: {current_price:.4f}, Breakeven: {breakeven_price:.4f}")
             else:
                 print("Hold signal received. No action taken.")
                 bot_state.update_state("signal", "Hold")
-                bot_state.update_state("signal_reason", "AI Model Prediction: Hold")
+                bot_state.update_state("signal_reason", "AI model predicted HOLD. No action taken.")
 
             # --- Periodic Retraining Logic ---
             if datetime.now() - last_training_time > timedelta(days=7):

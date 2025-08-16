@@ -72,12 +72,11 @@
                                 <span class="text-3xl" x-text="signal.includes('Buy') ? '🟢' : (signal.includes('Sell') ? '🔴' : '🟡')"></span>
                                 <div>
                                     <p class="font-bold text-lg" x-text="signal"></p>
-                                    <p class="text-sm text-gray-400" x-text="signalReason"></p>
                                 </div>
                             </div>
                         </div>
                         <div class="md:col-span-2 space-y-2 flex-1 flex flex-col justify-center">
-                            <template x-for="detail in (analysisDetails || '').split(' | ')" :key="detail">
+                            <template x-for="detail in (signalReason || '').split(' | ')" :key="detail">
                                 <div class="signal-box" :class="{
                                     'border-green-500/30': detail.includes('✅'),
                                     'border-red-500/30': detail.includes('❌')
@@ -88,7 +87,7 @@
                                     }"></p>
                                 </div>
                             </template>
-                            <p x-show="!analysisDetails || analysisDetails === 'N/A' || analysisDetails === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
+                            <p x-show="!signalReason || signalReason === 'N/A' || signalReason === 'Waiting for data...'" class="text-sm text-gray-400 mt-2">No detailed analysis available yet.</p>
                         </div>
                     </div>
                 </div>
